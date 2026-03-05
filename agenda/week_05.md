@@ -1,4 +1,4 @@
-# Week 5: Embeddings Deep Dive
+# Week 5: Evaluations & Quality Metrics
 
 **Month:** 2 (Quality & Safety) | **Duration:** 6-8 hours
 
@@ -6,566 +6,723 @@
 
 ## Overview
 
-Last week's keyword search was limited — "vacation" wouldn't find "time off". This week you'll learn **embeddings**: a way to convert text into numbers that capture *meaning*. This is how modern AI search actually works.
+Your RAG system generates answers, but **how do you know if they're any good?** This week you'll learn to measure AI quality systematically — a critical skill for production AI systems.
 
 ---
 
 ## Learning Objectives
 
 By the end of this week, you will:
-- Understand what embeddings are and why they matter
-- Generate embeddings using OpenAI's API
-- Calculate similarity between texts
-- Build semantic search that understands meaning
-- Compare different embedding models
+- Understand why evaluation matters
+- Build test datasets for your AI
+- Implement automatic quality metrics
+- Use LLM-as-a-judge evaluation
+- Set up regression testing for AI
+
+---
+
+## Model Options
+
+| Feature | OpenAI (Paid) | Ollama (Free/Local) |
+|---------|--------------|---------------------|
+| System under test | `gpt-4o-mini` | `llama3.1:8b` |
+| LLM-as-judge | `gpt-4o-mini` | `qwq:32b` (strong reasoning) or `llama3.1:8b` (faster) |
+
+**Quick start with Ollama:**
+```bash
+ollama pull llama3.1:8b   # system under test
+ollama pull qwq:32b       # judge model (requires ~20GB RAM); use llama3.1:8b as fallback
+```
+
+```python
+from scripts.model_config import get_client, CHAT_MODEL, REASON_MODEL
+# REASON_MODEL defaults to qwq:32b (Ollama) / gpt-4o-mini (OpenAI)
+```
+
+> Tip: For LLM-as-judge, use a *different* (ideally stronger) model than the one being evaluated to avoid bias.
 
 ---
 
 ## Theory (2 hours)
 
-### 1. What Are Embeddings? (30 min)
+### 1. Why Evaluate AI? (30 min)
 
-**Embeddings convert text → numbers (vectors).**
+**The problem:** AI outputs are non-deterministic. The same question can give different answers.
 
+**Without evaluation:**
+- "It seems to work" → ships broken AI
+- Can't measure improvements
+- No way to catch regressions
+
+**With evaluation:**
+- Quantified quality scores
+- Know when changes help/hurt
+- Confident deployments
+
+### 2. Evaluation Types (30 min)
+
+| Type | What It Measures | How |
+|------|------------------|-----|
+| **Retrieval** | Did we find the right documents? | Precision, Recall |
+| **Generation** | Is the answer good? | Faithfulness, Relevance |
+| **End-to-End** | Does the whole system work? | Answer correctness |
+
+### 3. Key Metrics (30 min)
+
+**Retrieval Metrics:**
 ```
-"I love pizza" → [0.23, -0.45, 0.12, ..., 0.67]  # 1536 numbers
-"Pizza is great" → [0.21, -0.44, 0.11, ..., 0.65]  # Similar numbers!
-"I hate pizza" → [0.23, -0.45, 0.12, ..., -0.32]  # Different at the end
-```
+Precision = relevant retrieved / total retrieved
+Recall = relevant retrieved / total relevant
 
-**Key insight:** Similar meanings → similar numbers
-
-```
-dog ≈ puppy ≈ canine  (close vectors)
-dog ≠ pizza ≠ vacation (far apart)
-```
-
-### 2. How AI Search Actually Works (30 min)
-
-```
-OLD WAY (Keyword Search)
-━━━━━━━━━━━━━━━━━━━━━━━━
-"vacation policy" → only finds docs with word "vacation"
-Misses: "time off", "PTO", "paid leave"
-
-NEW WAY (Semantic Search)
-━━━━━━━━━━━━━━━━━━━━━━━━
-"vacation policy" → [0.23, 0.45, ...] (meaning vector)
-                 ↓
-Compare with all document vectors
-                 ↓
-Finds: "PTO policy", "time off rules", "leave guidelines"
-```
-
-### 3. Vector Similarity (30 min)
-
-**How do we measure "similar"?**
-
-**Cosine Similarity:** Angle between vectors
-- 1.0 = identical meaning
-- 0.0 = unrelated
-- -1.0 = opposite meaning
-
-```
-"I love dogs"   vs  "I adore puppies"    → 0.95 (very similar!)
-"I love dogs"   vs  "The weather is nice" → 0.15 (unrelated)
-"I love dogs"   vs  "I hate dogs"        → 0.45 (related but different)
+Example: Query finds 5 docs, 3 are relevant, 2 relevant docs exist
+- Precision = 3/5 = 60%
+- Recall = 3/2... wait, can't find more than exist!
 ```
 
-### 4. Embedding Models (30 min)
+**Generation Metrics:**
+- **Faithfulness**: Does the answer match the context? (no hallucination)
+- **Relevance**: Does the answer address the question?
+- **Completeness**: Did we answer the full question?
 
-| Model | Dimensions | Best For |
-|-------|------------|----------|
-| `text-embedding-3-small` | 1536 | General use, cheaper |
-| `text-embedding-3-large` | 3072 | Higher accuracy |
-| `text-embedding-ada-002` | 1536 | Legacy, still works |
+### 4. LLM-as-a-Judge (30 min)
 
-**Cost comparison:**
-- `3-small`: $0.02 per 1M tokens
-- `3-large`: $0.13 per 1M tokens
-- Rule: Start with small, upgrade if needed
+**Use one LLM to evaluate another:**
+```python
+prompt = f"""
+Rate this answer on a scale of 1-5:
+
+Question: {question}
+Context: {context}
+Answer: {answer}
+
+Criteria:
+- Factual accuracy (matches context)
+- Completeness (answers the question fully)
+- Relevance (no off-topic information)
+
+Return JSON: {{"score": 1-5, "reason": "..."}}
+"""
+```
+
+**Pros:** Scalable, nuanced evaluation
+**Cons:** Can be biased, costs money
+
+### 5. Ground-Truth Curation (30 min)
+
+**Golden datasets** are your source of truth for evaluation.
+
+**Creating ground-truth data:**
+| Method | Pros | Cons |
+|--------|------|------|
+| **Expert labeling** | High quality | Expensive, slow |
+| **Crowdsourcing** | Scalable | Quality varies |
+| **LLM-assisted** | Fast | Needs verification |
+| **Production sampling** | Realistic | Delayed feedback |
+
+**Best practices:**
+1. **Diverse questions** — Cover edge cases, not just happy paths
+2. **Multiple correct answers** — "20 days" vs "Twenty days" both valid
+3. **Annotator guidelines** — Clear criteria for labelers
+4. **Inter-rater agreement** — Multiple people label same items
+5. **Regular updates** — Refresh as product changes
+
+```python
+# Labeling workflow example
+golden_test = {
+    "question": "How many vacation days?",
+    "acceptable_answers": [
+        "20 days",
+        "Twenty days",
+        "20 PTO days per year"
+    ],
+    "required_docs": ["vacation_policy.txt"],
+    "difficulty": "easy",
+    "labeled_by": ["expert_1", "expert_2"],
+    "created_date": "2025-01-15"
+}
+```
+
+### 6. CI/CD Integration for Prompt Testing (30 min)
+
+**Run evaluations automatically on every change:**
+
+```yaml
+# .github/workflows/eval.yml
+name: AI Evaluation
+
+on:
+  push:
+    paths:
+      - 'prompts/**'
+      - 'src/rag/**'
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Run evaluations
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python run_evaluation.py
+      
+      - name: Check for regression
+        run: python check_regression.py --threshold 0.80
+```
+
+**Key metrics to gate deployments:**
+- Overall score > 0.80 (or your threshold)
+- No individual metric below 0.60
+- No regression > 5% from baseline
 
 ---
 
 ## Hands-On Practice (4-6 hours)
 
-### Task 1: Generate Your First Embedding (30 min)
+### Task 1: Create a Test Dataset (45 min)
 
 ```python
-# first_embedding.py
-from openai import OpenAI
-from dotenv import load_dotenv
+# test_dataset.py
+import json
 
-load_dotenv()
-client = OpenAI()
-
-def get_embedding(text: str) -> list[float]:
-    """Convert text to an embedding vector."""
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=text
-    )
-    return response.data[0].embedding
-
-# Test
-text = "I love programming in Python"
-embedding = get_embedding(text)
-
-print(f"Text: {text}")
-print(f"Embedding dimensions: {len(embedding)}")
-print(f"First 5 values: {embedding[:5]}")
-print(f"Last 5 values: {embedding[-5:]}")
-```
-
-### Task 2: Calculate Similarity (45 min)
-
-**Install numpy first (needed for vector math):**
-```bash
-pip install numpy
-```
-
-```python
-# similarity.py
-from openai import OpenAI
-from dotenv import load_dotenv
-import numpy as np
-
-load_dotenv()
-client = OpenAI()
-
-def get_embedding(text: str) -> list[float]:
-    """Get embedding for text."""
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=text
-    )
-    return response.data[0].embedding
-
-def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
-    """Calculate cosine similarity between two vectors."""
-    a = np.array(vec1)
-    b = np.array(vec2)
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-# Test with different texts
-texts = [
-    "I love programming in Python",
-    "Python is my favorite language for coding",
-    "I enjoy writing code in Python",
-    "The weather is beautiful today",
-    "I hate programming"
+# Create test questions with expected answers
+test_cases = [
+    {
+        "id": 1,
+        "question": "How many vacation days do employees get after 2 years?",
+        "expected_answer": "20 days",
+        "relevant_doc": "vacation_policy.txt"
+    },
+    {
+        "id": 2,
+        "question": "Can I work from home on Wednesday?",
+        "expected_answer": "No, Wednesday is a required office day",
+        "relevant_doc": "remote_work.txt"
+    },
+    {
+        "id": 3,
+        "question": "What's the 401k match?",
+        "expected_answer": "4% company match",
+        "relevant_doc": "benefits.txt"
+    },
+    {
+        "id": 4,
+        "question": "How much is the home office equipment allowance?",
+        "expected_answer": "$500",
+        "relevant_doc": "remote_work.txt"
+    },
+    {
+        "id": 5,
+        "question": "When should I request vacation?",
+        "expected_answer": "At least 2 weeks in advance",
+        "relevant_doc": "vacation_policy.txt"
+    }
 ]
 
-# Get embedding for the first text
-base_text = texts[0]
-base_embedding = get_embedding(base_text)
+# Save
+with open("test_data.json", "w") as f:
+    json.dump(test_cases, f, indent=2)
 
-print(f"Comparing everything to: '{base_text}'\n")
-
-for text in texts[1:]:
-    embedding = get_embedding(text)
-    similarity = cosine_similarity(base_embedding, embedding)
-    print(f"Similarity: {similarity:.4f} | '{text}'")
+print(f"Created {len(test_cases)} test cases")
 ```
 
-### Task 3: Semantic Search (60 min)
+### Task 2: Simple Correctness Check (45 min)
 
 ```python
-# semantic_search.py
+# simple_eval.py
 from openai import OpenAI
 from dotenv import load_dotenv
-import numpy as np
-from typing import List
-from dataclasses import dataclass
+from pydantic import BaseModel
+import json
 
 load_dotenv()
 client = OpenAI()
 
-@dataclass
-class Document:
-    content: str
-    embedding: List[float] = None
+class CorrectnessScore(BaseModel):
+    score: int  # 1-5
+    reason: str
+    matches_expected: bool
 
-def get_embedding(text: str) -> List[float]:
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=text
+def check_correctness(question: str, answer: str, expected: str) -> CorrectnessScore:
+    """Check if answer matches expected answer."""
+    
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You evaluate AI answers."},
+            {"role": "user", "content": f"""
+Compare the answer to the expected answer.
+
+Question: {question}
+Expected Answer: {expected}
+Actual Answer: {answer}
+
+Return JSON:
+{{
+    "score": 1-5 (1=completely wrong, 5=perfect match),
+    "reason": "brief explanation",
+    "matches_expected": true/false
+}}"""}
+        ],
+        response_format={"type": "json_object"}
     )
-    return response.data[0].embedding
-
-def cosine_similarity(a: List[float], b: List[float]) -> float:
-    a, b = np.array(a), np.array(b)
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-class SemanticSearch:
-    """A simple semantic search engine."""
     
-    def __init__(self):
-        self.documents: List[Document] = []
-    
-    def add_document(self, content: str):
-        """Add a document and compute its embedding."""
-        doc = Document(
-            content=content,
-            embedding=get_embedding(content)
-        )
-        self.documents.append(doc)
-        print(f"Added: {content[:50]}...")
-    
-    def search(self, query: str, top_k: int = 3) -> List[tuple]:
-        """Find most similar documents to query."""
-        query_embedding = get_embedding(query)
-        
-        # Calculate similarity to all documents
-        results = []
-        for doc in self.documents:
-            sim = cosine_similarity(query_embedding, doc.embedding)
-            results.append((doc.content, sim))
-        
-        # Sort by similarity
-        results.sort(key=lambda x: x[1], reverse=True)
-        return results[:top_k]
+    data = json.loads(response.choices[0].message.content)
+    return CorrectnessScore(**data)
 
 # Test
 if __name__ == "__main__":
-    search = SemanticSearch()
+    result = check_correctness(
+        question="How many vacation days after 2 years?",
+        answer="Employees receive 20 days of paid time off after working for 2 years.",
+        expected="20 days"
+    )
     
-    # Add documents
-    documents = [
-        "Employees receive 20 days of paid time off per year",
-        "The company 401k plan matches up to 4% of salary",
-        "Remote work is allowed on Mondays and Fridays",
-        "Health insurance covers medical, dental, and vision",
-        "Annual performance reviews happen in December",
-        "The office is located in downtown San Francisco",
-        "New employees receive a $500 equipment allowance"
-    ]
-    
-    for doc in documents:
-        search.add_document(doc)
-    
-    # Search
-    queries = [
-        "vacation policy",  # Should find PTO
-        "working from home",  # Should find remote work
-        "retirement benefits"  # Should find 401k
-    ]
-    
-    for query in queries:
-        print(f"\n=== Query: '{query}' ===")
-        results = search.search(query, top_k=2)
-        for content, score in results:
-            print(f"  [{score:.4f}] {content}")
+    print(f"Score: {result.score}/5")
+    print(f"Matches: {result.matches_expected}")
+    print(f"Reason: {result.reason}")
 ```
 
-### Task 4: Batch Embeddings (45 min)
+### Task 3: Faithfulness Evaluation (60 min)
 
 ```python
-# batch_embeddings.py
+# faithfulness_eval.py
 from openai import OpenAI
 from dotenv import load_dotenv
+from pydantic import BaseModel
 from typing import List
-import time
+import json
 
 load_dotenv()
 client = OpenAI()
 
-def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
-    """Get embeddings for multiple texts in one API call."""
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=texts
+class FaithfulnessResult(BaseModel):
+    score: float  # 0-1
+    claims: List[str]
+    supported_claims: List[str]
+    unsupported_claims: List[str]
+
+def evaluate_faithfulness(context: str, answer: str) -> FaithfulnessResult:
+    """Check if all claims in the answer are supported by context."""
+    
+    # Step 1: Extract claims from answer
+    claims_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "Extract factual claims from text."},
+            {"role": "user", "content": f"""
+Extract all factual claims from this answer:
+
+"{answer}"
+
+Return JSON: {{"claims": ["claim 1", "claim 2", ...]}}"""}
+        ],
+        response_format={"type": "json_object"}
     )
-    return [item.embedding for item in response.data]
-
-# Compare single vs batch
-documents = [
-    "Python is a programming language",
-    "Machine learning uses algorithms",
-    "Neural networks are inspired by brains",
-    "Data science analyzes large datasets",
-    "Natural language processing handles text"
-]
-
-# Batch method (faster!)
-print("Batch method:")
-start = time.time()
-embeddings = get_embeddings_batch(documents)
-batch_time = time.time() - start
-print(f"  Time: {batch_time:.3f}s for {len(documents)} documents")
-print(f"  Got {len(embeddings)} embeddings of dimension {len(embeddings[0])}")
-
-# Single method (slower)
-print("\nSingle method:")
-start = time.time()
-single_embeddings = []
-for doc in documents:
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=doc
-    )
-    single_embeddings.append(response.data[0].embedding)
-single_time = time.time() - start
-print(f"  Time: {single_time:.3f}s for {len(documents)} documents")
-
-print(f"\nBatch is {single_time/batch_time:.1f}x faster!")
-```
-
-### Task 5: Upgrade Your RAG (60 min)
-
-Replace keyword search with semantic search:
-
-```python
-# semantic_rag.py
-from openai import OpenAI
-from dotenv import load_dotenv
-from pathlib import Path
-import numpy as np
-from typing import List
-from dataclasses import dataclass
-
-load_dotenv()
-client = OpenAI()
-
-@dataclass
-class Document:
-    content: str
-    filename: str
-    embedding: List[float]
-
-def get_embedding(text: str) -> List[float]:
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=text
-    )
-    return response.data[0].embedding
-
-def cosine_similarity(a: List[float], b: List[float]) -> float:
-    a, b = np.array(a), np.array(b)
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-class SemanticRAG:
-    """RAG with semantic search instead of keyword search."""
     
-    def __init__(self, docs_folder: str):
-        self.documents = []
-        self._load_documents(docs_folder)
+    claims_data = json.loads(claims_response.choices[0].message.content)
+    claims = claims_data.get("claims", [])
     
-    def _load_documents(self, folder: str):
-        """Load and embed all documents."""
-        folder_path = Path(folder)
-        
-        for file in folder_path.glob("*.txt"):
-            content = file.read_text()
-            embedding = get_embedding(content)
-            
-            doc = Document(
-                content=content,
-                filename=file.name,
-                embedding=embedding
-            )
-            self.documents.append(doc)
-            print(f"Embedded: {file.name}")
+    if not claims:
+        return FaithfulnessResult(
+            score=1.0, claims=[], supported_claims=[], unsupported_claims=[]
+        )
     
-    def search(self, query: str, top_k: int = 2) -> List[Document]:
-        """Find most relevant documents using semantic search."""
-        query_embedding = get_embedding(query)
-        
-        # Calculate similarities
-        scored = []
-        for doc in self.documents:
-            score = cosine_similarity(query_embedding, doc.embedding)
-            scored.append((doc, score))
-        
-        # Sort by similarity
-        scored.sort(key=lambda x: x[1], reverse=True)
-        
-        return [doc for doc, score in scored[:top_k]]
+    # Step 2: Check each claim against context
+    supported = []
+    unsupported = []
     
-    def ask(self, question: str) -> str:
-        """Ask a question, get answer from documents."""
-        
-        # Semantic search
-        relevant_docs = self.search(question, top_k=2)
-        
-        # Build context
-        context = "\n\n".join([
-            f"[{doc.filename}]:\n{doc.content}"
-            for doc in relevant_docs
-        ])
-        
-        # Generate answer
-        response = client.chat.completions.create(
+    for claim in claims:
+        verify_response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Answer based on the provided context only."},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"}
-            ]
+                {"role": "user", "content": f"""
+Is this claim supported by the context?
+
+Context: {context}
+
+Claim: {claim}
+
+Return JSON: {{"supported": true/false}}"""}
+            ],
+            response_format={"type": "json_object"}
         )
         
-        return response.choices[0].message.content
+        verify_data = json.loads(verify_response.choices[0].message.content)
+        
+        if verify_data.get("supported"):
+            supported.append(claim)
+        else:
+            unsupported.append(claim)
+    
+    score = len(supported) / len(claims) if claims else 1.0
+    
+    return FaithfulnessResult(
+        score=score,
+        claims=claims,
+        supported_claims=supported,
+        unsupported_claims=unsupported
+    )
 
 # Test
 if __name__ == "__main__":
-    rag = SemanticRAG("docs")
+    context = """
+    Employees receive 20 days of paid time off after 2 years of employment.
+    Vacation must be requested 2 weeks in advance through the HR portal.
+    """
     
-    # These queries now work with synonyms!
-    questions = [
-        "What's the PTO policy?",  # Finds "vacation" docs
-        "Can I work remotely?",     # Finds "work from home" docs
-        "What retirement plans exist?"  # Finds "401k" docs
-    ]
+    # Good answer (faithful)
+    good_answer = "After 2 years, you get 20 vacation days. Request them 2 weeks ahead."
     
-    for q in questions:
-        print(f"\nQ: {q}")
-        answer = rag.ask(q)
-        print(f"A: {answer}")
+    # Bad answer (has hallucination)
+    bad_answer = "You get 20 vacation days, and you can also carry over up to 30 days."
+    
+    print("=== Good Answer ===")
+    result = evaluate_faithfulness(context, good_answer)
+    print(f"Score: {result.score:.2f}")
+    print(f"Supported: {result.supported_claims}")
+    print(f"Unsupported: {result.unsupported_claims}")
+    
+    print("\n=== Bad Answer ===")
+    result = evaluate_faithfulness(context, bad_answer)
+    print(f"Score: {result.score:.2f}")
+    print(f"Supported: {result.supported_claims}")
+    print(f"Unsupported: {result.unsupported_claims}")
 ```
 
-### Task 6: Compare Models (45 min)
+### Task 4: RAG Evaluation Pipeline (60 min)
 
 ```python
-# compare_models.py
+# rag_evaluator.py
 from openai import OpenAI
 from dotenv import load_dotenv
-import numpy as np
-import time
+from dataclasses import dataclass
+from typing import List
+import json
 
 load_dotenv()
 client = OpenAI()
 
-def get_embedding(text: str, model: str) -> list:
-    response = client.embeddings.create(model=model, input=text)
-    return response.data[0].embedding
+@dataclass
+class EvalResult:
+    question: str
+    answer: str
+    retrieval_score: float  # Did we find right docs?
+    faithfulness_score: float  # Answer matches context?
+    correctness_score: float  # Answer is correct?
+    overall_score: float
 
-def cosine_similarity(a, b):
-    a, b = np.array(a), np.array(b)
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+def evaluate_rag_response(
+    question: str,
+    answer: str,
+    context: str,
+    expected_answer: str,
+    expected_doc: str,
+    retrieved_docs: List[str]
+) -> EvalResult:
+    """Comprehensive RAG evaluation."""
+    
+    # 1. Retrieval score: Did we find the expected document?
+    retrieval_score = 1.0 if expected_doc in retrieved_docs else 0.0
+    
+    # 2. Faithfulness: Is answer grounded in context?
+    faith_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": f"""
+Score how well the answer is supported by the context (0-1):
 
-# Test pairs
-test_pairs = [
-    ("I love pizza", "Pizza is my favorite food"),
-    ("I love pizza", "I hate pizza"),
-    ("The stock market crashed", "Financial markets declined sharply"),
-    ("A cat sleeps on the couch", "The weather is sunny today")
-]
+Context: {context}
+Answer: {answer}
 
-models = ["text-embedding-3-small", "text-embedding-3-large"]
+Return JSON: {{"score": 0.0-1.0, "reason": "..."}}"""}
+        ],
+        response_format={"type": "json_object"}
+    )
+    faithfulness_score = json.loads(faith_response.choices[0].message.content)["score"]
+    
+    # 3. Correctness: Does answer match expected?
+    correct_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": f"""
+Score how well the answer matches the expected answer (0-1):
 
-for model in models:
-    print(f"\n{'='*50}")
-    print(f"Model: {model}")
+Question: {question}
+Expected: {expected_answer}
+Actual: {answer}
+
+Return JSON: {{"score": 0.0-1.0}}"""}
+        ],
+        response_format={"type": "json_object"}
+    )
+    correctness_score = json.loads(correct_response.choices[0].message.content)["score"]
+    
+    # Overall score (weighted average)
+    overall = (retrieval_score * 0.3 + faithfulness_score * 0.4 + correctness_score * 0.3)
+    
+    return EvalResult(
+        question=question,
+        answer=answer,
+        retrieval_score=retrieval_score,
+        faithfulness_score=faithfulness_score,
+        correctness_score=correctness_score,
+        overall_score=overall
+    )
+
+# Test
+if __name__ == "__main__":
+    result = evaluate_rag_response(
+        question="How many vacation days after 2 years?",
+        answer="After working for 2 years, employees receive 20 days of PTO.",
+        context="Employees with 2-5 years tenure receive 20 days per year.",
+        expected_answer="20 days",
+        expected_doc="vacation_policy.txt",
+        retrieved_docs=["vacation_policy.txt", "benefits.txt"]
+    )
+    
+    print(f"Question: {result.question}")
+    print(f"Answer: {result.answer}")
+    print(f"\nScores:")
+    print(f"  Retrieval:    {result.retrieval_score:.2f}")
+    print(f"  Faithfulness: {result.faithfulness_score:.2f}")
+    print(f"  Correctness:  {result.correctness_score:.2f}")
+    print(f"  Overall:      {result.overall_score:.2f}")
+```
+
+### Task 5: Run Full Evaluation Suite (45 min)
+
+```python
+# run_evaluation.py
+from rag_evaluator import evaluate_rag_response, EvalResult
+from typing import List
+import json
+
+def run_evaluation_suite(rag_system, test_file: str = "test_data.json") -> List[EvalResult]:
+    """Run all test cases through the RAG system and evaluate."""
+    
+    # Load test cases
+    with open(test_file) as f:
+        test_cases = json.load(f)
+    
+    results = []
+    
+    for test in test_cases:
+        print(f"Testing: {test['question'][:50]}...")
+        
+        # Get RAG response (mock for now)
+        # response = rag_system.ask(test['question'])
+        
+        # Mock response for demo
+        mock_answer = f"Based on the {test['relevant_doc']}, {test['expected_answer']}."
+        mock_context = f"Document content about {test['expected_answer']}."
+        mock_docs = [test['relevant_doc']]
+        
+        result = evaluate_rag_response(
+            question=test['question'],
+            answer=mock_answer,
+            context=mock_context,
+            expected_answer=test['expected_answer'],
+            expected_doc=test['relevant_doc'],
+            retrieved_docs=mock_docs
+        )
+        
+        results.append(result)
+    
+    return results
+
+def print_summary(results: List[EvalResult]):
+    """Print evaluation summary."""
+    
+    if not results:
+        print("No results")
+        return
+    
+    avg_retrieval = sum(r.retrieval_score for r in results) / len(results)
+    avg_faith = sum(r.faithfulness_score for r in results) / len(results)
+    avg_correct = sum(r.correctness_score for r in results) / len(results)
+    avg_overall = sum(r.overall_score for r in results) / len(results)
+    
+    print("\n" + "="*50)
+    print("EVALUATION SUMMARY")
     print("="*50)
+    print(f"Total test cases: {len(results)}")
+    print(f"\nAverage Scores:")
+    print(f"  Retrieval:    {avg_retrieval:.2%}")
+    print(f"  Faithfulness: {avg_faith:.2%}")
+    print(f"  Correctness:  {avg_correct:.2%}")
+    print(f"  Overall:      {avg_overall:.2%}")
     
-    start = time.time()
+    # Find failures
+    failures = [r for r in results if r.overall_score < 0.7]
+    if failures:
+        print(f"\n⚠️  {len(failures)} test(s) below 70%:")
+        for r in failures:
+            print(f"  - {r.question[:50]}... ({r.overall_score:.2%})")
+
+# Run
+if __name__ == "__main__":
+    # Create test data first
+    exec(open("test_dataset.py").read())
     
-    for text1, text2 in test_pairs:
-        emb1 = get_embedding(text1, model)
-        emb2 = get_embedding(text2, model)
-        sim = cosine_similarity(emb1, emb2)
-        print(f"{sim:.4f} | '{text1}' vs '{text2}'")
+    results = run_evaluation_suite(None)
+    print_summary(results)
+```
+
+### Task 6: Regression Testing (30 min)
+
+```python
+# regression_test.py
+import json
+from datetime import datetime
+from pathlib import Path
+
+class RegressionTracker:
+    """Track evaluation results over time."""
     
-    elapsed = time.time() - start
-    print(f"\nTime: {elapsed:.2f}s | Dimensions: {len(emb1)}")
+    def __init__(self, results_file: str = "eval_history.json"):
+        self.results_file = Path(results_file)
+        self.history = self._load_history()
+    
+    def _load_history(self) -> list:
+        if self.results_file.exists():
+            return json.loads(self.results_file.read_text())
+        return []
+    
+    def save_result(self, scores: dict, version: str = None):
+        """Save evaluation result."""
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "version": version or "unknown",
+            "scores": scores
+        }
+        
+        self.history.append(result)
+        self.results_file.write_text(json.dumps(self.history, indent=2))
+        
+        # Check for regression
+        if len(self.history) > 1:
+            prev = self.history[-2]["scores"]
+            curr = scores
+            
+            for metric, value in curr.items():
+                if metric in prev and value < prev[metric] - 0.05:
+                    print(f"⚠️  REGRESSION: {metric} dropped from {prev[metric]:.2%} to {value:.2%}")
+    
+    def show_history(self):
+        """Print history."""
+        print("\nEvaluation History:")
+        for result in self.history[-5:]:
+            print(f"  {result['timestamp']}: {result['scores'].get('overall', 'N/A'):.2%}")
+
+# Usage
+if __name__ == "__main__":
+    tracker = RegressionTracker()
+    
+    # Save a result
+    tracker.save_result({
+        "retrieval": 0.85,
+        "faithfulness": 0.90,
+        "correctness": 0.88,
+        "overall": 0.88
+    }, version="v1.0")
+    
+    tracker.show_history()
 ```
 
 ---
 
 ## 🎯 Optional Challenges
 
-*Embeddings are the foundation of modern AI search. Master them.*
+*You can't improve what you don't measure. Master evaluation here.*
 
-### Challenge 1: Similarity Threshold Explorer
-Build a tool to find the optimal similarity threshold:
+### Challenge 1: Build a Human Evaluation Interface
+Create a simple UI (CLI or web) for human evaluation:
 ```python
-# Test different thresholds on your document set
-# At what threshold do you get best precision/recall?
-for threshold in [0.6, 0.7, 0.8, 0.9]:
-    results = search(query, threshold=threshold)
-    # Measure: Are results relevant? Are good results missed?
+# Show question, expected answer, actual answer
+# Collect human ratings (1-5) for:
+# - Correctness
+# - Helpfulness  
+# - Fluency
+# Compare human vs LLM-as-judge scores
 ```
 
-### Challenge 2: Embedding Visualization
-Reduce embedding dimensions and visualize:
-```python
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
+### Challenge 2: Adversarial Test Set
+Create intentionally difficult test cases:
+- Questions with no answer in documents
+- Questions requiring synthesis across documents
+- Misleading questions (trick questions)
+- Very long context requirements
 
-# Embed 50 different sentences
-# Use TSNE to reduce to 2D
-# Plot and color by category
-# Do similar meanings cluster together?
+### Challenge 3: Regression Detection System
+Build automated regression detection:
+```python
+def detect_regression(new_scores, baseline_scores, threshold=0.05):
+    # Return list of metrics that dropped significantly
+    # Integration: Block PR if regression detected
 ```
 
-### Challenge 3: Multi-Language Embeddings
-Test if embeddings work across languages:
+### Challenge 4: Evaluate Across Models
+Test the same prompts across different models:
 ```python
-# Does "I love programming" (English) 
-# match "Me encanta programar" (Spanish)?
-eng_emb = get_embedding("I love programming")
-sp_emb = get_embedding("Me encanta programar")
-print(cosine_similarity(eng_emb, sp_emb))  # How close?
+models = ["gpt-4o-mini", "gpt-4o", "claude-sonnet"]
+for model in models:
+    scores = evaluate_rag(model, test_cases)
+    # Compare: Which model performs best?
+    # Cost vs quality tradeoff analysis
 ```
 
-### Challenge 4: Embedding Cache with TTL
-Build a production cache:
-```python
-class EmbeddingCache:
-    def __init__(self, ttl_hours=24):
-        self.cache = {}
-        self.timestamps = {}
-    
-    def get(self, text):
-        # Return cached if exists and not expired
-        # Otherwise compute, cache, and return
-```
-
-### Challenge 5: Embedding Quality Test Suite
-Create automated tests for your embedding setup:
-```python
-test_cases = [
-    ("king", "queen", "high"),  # Should be high similarity
-    ("dog", "cat", "high"),
-    ("computer", "banana", "low"),  # Should be low
-]
-# Run all tests, report pass/fail
-```
+### Challenge 5: Continuous Evaluation Pipeline
+Set up automated weekly evaluation:
+1. Run evaluation suite every Sunday
+2. Compare to last week's baseline
+3. Generate report with charts
+4. Send Slack notification with summary
+5. Archive results to database
 
 ---
 
 ## Knowledge Checklist
 
-- [ ] I understand that embeddings convert text to numbers
-- [ ] I can generate embeddings using OpenAI's API
-- [ ] I can calculate cosine similarity between vectors
-- [ ] I can build semantic search with embeddings
-- [ ] I understand the difference between small and large models
-- [ ] I upgraded my RAG to use semantic search
+- [ ] I understand why AI evaluation is essential
+- [ ] I can create test datasets for RAG
+- [ ] I can implement LLM-as-a-judge evaluation
+- [ ] I understand faithfulness vs correctness
+- [ ] I can track evaluations over time
+- [ ] I can detect regressions
+- [ ] I understand ground-truth curation best practices
+- [ ] I can integrate evaluations into CI/CD pipelines
 
 ---
 
 ## Deliverables
 
-1. `first_embedding.py` — Basic embedding generation
-2. `similarity.py` — Similarity calculations
-3. `semantic_search.py` — Search by meaning
-4. `batch_embeddings.py` — Efficient batch processing
-5. `semantic_rag.py` — RAG with semantic search
-6. `compare_models.py` — Model comparison
+1. `test_dataset.py` — Create test cases
+2. `simple_eval.py` — Basic correctness check
+3. `faithfulness_eval.py` — Check for hallucinations
+4. `rag_evaluator.py` — Full evaluation pipeline
+5. `run_evaluation.py` — Run evaluation suite
+6. `regression_test.py` — Track changes over time
 
 ---
 
 ## What's Next?
 
-Next week you'll build a proper RAG system with:
-- Document chunking (splitting large docs)
-- Vector databases (Qdrant) for fast search
-- Better context construction
+Next week: **Security & Guardrails** + your first portfolio project checkpoint!
 
 ---
 
 ## Resources
 
-- [OpenAI Embeddings Guide](https://platform.openai.com/docs/guides/embeddings)
-- [Understanding Embeddings](https://www.youtube.com/watch?v=5MaWmXwxFNQ)
-- [Cosine Similarity Explained](https://www.pinecone.io/learn/cosine-similarity/)
+- [RAGAS Framework](https://docs.ragas.io/)
+- [LangSmith Evaluation](https://docs.smith.langchain.com/)
+- [Evaluating LLM Applications](https://www.anthropic.com/news/evaluating-ai-systems)
