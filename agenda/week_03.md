@@ -1,651 +1,592 @@
-# Week 3: Better Prompts & Structured Output
+# Week 3: Embeddings Deep Dive
 
-**Month:** 1 (First Steps) | **Duration:** 6-8 hours
+**Month:** 2 (Quality & Safety) | **Duration:** 6-8 hours
 
 ---
 
 ## Overview
 
-Your chatbot works, but it returns free-form text. This week you'll learn to make it return **structured data** (JSON) reliably. This is essential for building real applications where you need predictable outputs.
+Last week's keyword search was limited — "vacation" wouldn't find "time off". This week you'll learn **embeddings**: a way to convert text into numbers that capture *meaning*. This is how modern AI search actually works.
 
 ---
 
 ## Learning Objectives
 
 By the end of this week, you will:
-- Understand prompt engineering patterns (zero-shot, few-shot, chain-of-thought)
-- Get the AI to return valid JSON consistently
-- Use Pydantic to validate AI outputs
-- Build retry logic for when outputs fail validation
-- Handle hallucinations and reduce them
+- Understand what embeddings are and why they matter
+- Generate embeddings using OpenAI's API
+- Calculate similarity between texts
+- Build semantic search that understands meaning
+- Compare different embedding models
+
+---
+
+## Model Options
+
+| Feature | OpenAI (Paid) | Ollama (Free/Local) |
+|---------|--------------|---------------------|
+| Embeddings (fast) | `text-embedding-3-small` | `nomic-embed-text` |
+| Embeddings (multilingual) | `text-embedding-3-large` | `bge-m3` |
+
+**Quick start with Ollama:**
+```bash
+ollama pull nomic-embed-text   # 274M — fast, English-focused
+ollama pull bge-m3             # multilingual, compare against nomic
+```
+
+```python
+from scripts.model_config import get_client, EMBED_MODEL
+# For comparing models, override EMBED_MODEL env var:
+# EMBED_MODEL=bge-m3 AI_PROVIDER=ollama python your_script.py
+```
 
 ---
 
 ## Theory (2 hours)
 
-### 1. Why Prompts Matter (30 min)
+### 1. What Are Embeddings? (30 min)
 
-**Prompting is programming.** The better your prompt, the better the output.
-
-**Bad prompt:**
-```
-Tell me about this product
-```
-
-**Good prompt:**
-```
-You are a product analyst. Analyze this product and return:
-- Name
-- Category
-- Price range (low/medium/high)
-- Key features (list of 3-5)
-
-Product description: {description}
-
-Return JSON format only.
-```
-
-### 2. Prompting Techniques (45 min)
-
-| Technique | Description | Example |
-|-----------|-------------|---------|
-| **Zero-shot** | Just describe what you want | "Summarize this text in 3 sentences" |
-| **Few-shot** | Give examples | "Input: X → Output: Y. Now do: Z" |
-| **Chain-of-thought** | Ask for reasoning | "Think step by step, then give final answer" |
-| **Role prompting** | Assign expertise | "You are an expert lawyer..." |
-
-**Few-shot example:**
-```
-Extract the sentiment from these reviews:
-
-Review: "I love this product!" → Sentiment: positive
-Review: "Terrible, waste of money" → Sentiment: negative  
-Review: "It's okay, nothing special" → Sentiment: neutral
-
-Review: "Best purchase ever!" → Sentiment:
-```
-
-### 3. Structured Output (30 min)
-
-**Why JSON?**
-- Predictable format for code to process
-- Can be validated
-- Easy to integrate with databases/APIs
-
-**Methods to get JSON:**
-
-| Method | Reliability | How |
-|--------|-------------|-----|
-| **Ask nicely** | 70% | "Return JSON..." |
-| **JSON mode** | 95% | `response_format={"type": "json_object"}` |
-| **Structured outputs** | 99% | Provide Pydantic schema |
-
-### 4. Validation with Pydantic (15 min)
-
-```python
-from pydantic import BaseModel
-
-class Product(BaseModel):
-    name: str
-    price: float
-    in_stock: bool
-```
-
-**Pydantic validates:**
-- Required fields are present
-- Types are correct
-- Values are within constraints
-
-### 5. Human-in-the-Loop Patterns (30 min)
-
-**Why human-in-the-loop?**
-AI isn't perfect. For high-stakes decisions, you need human approval:
+**Embeddings convert text → numbers (vectors).**
 
 ```
-User Request → [AI Processes] → [Human Reviews] → [Action Executed]
-                                      ↓
-                              Approve / Reject / Edit
+"I love pizza" → [0.23, -0.45, 0.12, ..., 0.67]  # 1536 numbers
+"Pizza is great" → [0.21, -0.44, 0.11, ..., 0.65]  # Similar numbers!
+"I hate pizza" → [0.23, -0.45, 0.12, ..., -0.32]  # Different at the end
 ```
 
-**When to use:**
-| Scenario | Why Human Needed |
-|----------|------------------|
-| Sending emails | AI might write inappropriate content |
-| Financial transactions | Errors could be costly |
-| Customer responses | Brand reputation at stake |
-| Content publishing | Legal/compliance requirements |
-| Data deletion | Irreversible action |
+**Key insight:** Similar meanings → similar numbers
 
-**Confidence-based escalation:**
-```python
-if response.confidence > 0.9:
-    execute_automatically()
-elif response.confidence > 0.7:
-    execute_with_notification()  # Human can review after
-else:
-    require_human_approval()     # Wait for human
+```
+dog ≈ puppy ≈ canine  (close vectors)
+dog ≠ pizza ≠ vacation (far apart)
 ```
 
-**Design patterns:**
-1. **Approval queue** — AI drafts, human approves before sending
-2. **Suggestion mode** — AI suggests, human decides
-3. **Confidence thresholds** — Auto-approve high confidence, escalate low
-4. **Audit trail** — Log all AI decisions for human review
+### 2. How AI Search Actually Works (30 min)
+
+```
+OLD WAY (Keyword Search)
+━━━━━━━━━━━━━━━━━━━━━━━━
+"vacation policy" → only finds docs with word "vacation"
+Misses: "time off", "PTO", "paid leave"
+
+NEW WAY (Semantic Search)
+━━━━━━━━━━━━━━━━━━━━━━━━
+"vacation policy" → [0.23, 0.45, ...] (meaning vector)
+                 ↓
+Compare with all document vectors
+                 ↓
+Finds: "PTO policy", "time off rules", "leave guidelines"
+```
+
+### 3. Vector Similarity (30 min)
+
+**How do we measure "similar"?**
+
+**Cosine Similarity:** Angle between vectors
+- 1.0 = identical meaning
+- 0.0 = unrelated
+- -1.0 = opposite meaning
+
+```
+"I love dogs"   vs  "I adore puppies"    → 0.95 (very similar!)
+"I love dogs"   vs  "The weather is nice" → 0.15 (unrelated)
+"I love dogs"   vs  "I hate dogs"        → 0.45 (related but different)
+```
+
+### 4. Embedding Models (30 min)
+
+| Model | Dimensions | Best For |
+|-------|------------|----------|
+| `text-embedding-3-small` | 1536 | General use, cheaper |
+| `text-embedding-3-large` | 3072 | Higher accuracy |
+| `text-embedding-ada-002` | 1536 | Legacy, still works |
+
+**Cost comparison:**
+- `3-small`: $0.02 per 1M tokens
+- `3-large`: $0.13 per 1M tokens
+- Rule: Start with small, upgrade if needed
 
 ---
 
 ## Hands-On Practice (4-6 hours)
 
-### Task 1: Basic JSON Responses (45 min)
+### Task 1: Generate Your First Embedding (30 min)
 
 ```python
-# json_basics.py
+# first_embedding.py
 from openai import OpenAI
 from dotenv import load_dotenv
-import json
 
 load_dotenv()
 client = OpenAI()
 
-def analyze_product(description: str) -> dict:
-    """Get structured analysis of a product."""
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": """Analyze the product and return JSON with:
-{
-    "name": "product name",
-    "category": "category",
-    "sentiment": "positive/negative/neutral",
-    "key_features": ["feature1", "feature2", "feature3"]
-}
-Return ONLY valid JSON, no other text."""
-            },
-            {"role": "user", "content": description}
-        ],
-        response_format={"type": "json_object"}  # Enforce JSON
+def get_embedding(text: str) -> list[float]:
+    """Convert text to an embedding vector."""
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text
     )
-    
-    return json.loads(response.choices[0].message.content)
+    return response.data[0].embedding
 
 # Test
-product = """
-The new iPhone 15 Pro has an amazing camera system with 48MP resolution.
-The titanium design makes it lighter than ever. Great battery life too!
-"""
+text = "I love programming in Python"
+embedding = get_embedding(text)
 
-result = analyze_product(product)
-print(json.dumps(result, indent=2))
+print(f"Text: {text}")
+print(f"Embedding dimensions: {len(embedding)}")
+print(f"First 5 values: {embedding[:5]}")
+print(f"Last 5 values: {embedding[-5:]}")
 ```
 
-### Task 2: Pydantic Validation (60 min)
+### Task 2: Calculate Similarity (45 min)
+
+**Install numpy first (needed for vector math):**
+```bash
+pip install numpy
+```
 
 ```python
-# pydantic_validation.py
+# similarity.py
 from openai import OpenAI
-from pydantic import BaseModel, Field
-from typing import List, Optional
 from dotenv import load_dotenv
-import json
+import numpy as np
 
 load_dotenv()
 client = OpenAI()
 
-# Define your data structure
-class ProductAnalysis(BaseModel):
-    name: str = Field(description="Product name")
-    category: str = Field(description="Product category")
-    price_estimate: Optional[float] = Field(None, description="Estimated price in USD")
-    sentiment: str = Field(description="positive, negative, or neutral")
-    key_features: List[str] = Field(description="3-5 key features")
-    confidence: float = Field(ge=0, le=1, description="Confidence score 0-1")
-
-def analyze_product_validated(description: str) -> ProductAnalysis:
-    """Get validated product analysis."""
-    
-    # Create prompt with schema
-    schema = ProductAnalysis.model_json_schema()
-    
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system", 
-                "content": f"""Analyze the product. Return valid JSON matching this schema:
-{json.dumps(schema, indent=2)}
-
-Return ONLY the JSON object."""
-            },
-            {"role": "user", "content": description}
-        ],
-        response_format={"type": "json_object"}
+def get_embedding(text: str) -> list[float]:
+    """Get embedding for text."""
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text
     )
-    
-    # Parse and validate
-    data = json.loads(response.choices[0].message.content)
-    return ProductAnalysis(**data)
+    return response.data[0].embedding
 
-# Test
-product = "The Sony WH-1000XM5 headphones offer industry-leading noise cancellation."
-result = analyze_product_validated(product)
-print(f"Name: {result.name}")
-print(f"Category: {result.category}")
-print(f"Sentiment: {result.sentiment}")
-print(f"Features: {result.key_features}")
+def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
+    """Calculate cosine similarity between two vectors."""
+    a = np.array(vec1)
+    b = np.array(vec2)
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+# Test with different texts
+texts = [
+    "I love programming in Python",
+    "Python is my favorite language for coding",
+    "I enjoy writing code in Python",
+    "The weather is beautiful today",
+    "I hate programming"
+]
+
+# Get embedding for the first text
+base_text = texts[0]
+base_embedding = get_embedding(base_text)
+
+print(f"Comparing everything to: '{base_text}'\n")
+
+for text in texts[1:]:
+    embedding = get_embedding(text)
+    similarity = cosine_similarity(base_embedding, embedding)
+    print(f"Similarity: {similarity:.4f} | '{text}'")
 ```
 
-### Task 3: Retry on Failure (60 min)
+### Task 3: Semantic Search (60 min)
 
 ```python
-# retry_logic.py
+# semantic_search.py
 from openai import OpenAI
-from pydantic import BaseModel, ValidationError
+from dotenv import load_dotenv
+import numpy as np
 from typing import List
+from dataclasses import dataclass
+
+load_dotenv()
+client = OpenAI()
+
+@dataclass
+class Document:
+    content: str
+    embedding: List[float] = None
+
+def get_embedding(text: str) -> List[float]:
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text
+    )
+    return response.data[0].embedding
+
+def cosine_similarity(a: List[float], b: List[float]) -> float:
+    a, b = np.array(a), np.array(b)
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+class SemanticSearch:
+    """A simple semantic search engine."""
+    
+    def __init__(self):
+        self.documents: List[Document] = []
+    
+    def add_document(self, content: str):
+        """Add a document and compute its embedding."""
+        doc = Document(
+            content=content,
+            embedding=get_embedding(content)
+        )
+        self.documents.append(doc)
+        print(f"Added: {content[:50]}...")
+    
+    def search(self, query: str, top_k: int = 3) -> List[tuple]:
+        """Find most similar documents to query."""
+        query_embedding = get_embedding(query)
+        
+        # Calculate similarity to all documents
+        results = []
+        for doc in self.documents:
+            sim = cosine_similarity(query_embedding, doc.embedding)
+            results.append((doc.content, sim))
+        
+        # Sort by similarity
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
+
+# Test
+if __name__ == "__main__":
+    search = SemanticSearch()
+    
+    # Add documents
+    documents = [
+        "Employees receive 20 days of paid time off per year",
+        "The company 401k plan matches up to 4% of salary",
+        "Remote work is allowed on Mondays and Fridays",
+        "Health insurance covers medical, dental, and vision",
+        "Annual performance reviews happen in December",
+        "The office is located in downtown San Francisco",
+        "New employees receive a $500 equipment allowance"
+    ]
+    
+    for doc in documents:
+        search.add_document(doc)
+    
+    # Search
+    queries = [
+        "vacation policy",  # Should find PTO
+        "working from home",  # Should find remote work
+        "retirement benefits"  # Should find 401k
+    ]
+    
+    for query in queries:
+        print(f"\n=== Query: '{query}' ===")
+        results = search.search(query, top_k=2)
+        for content, score in results:
+            print(f"  [{score:.4f}] {content}")
+```
+
+### Task 4: Batch Embeddings (45 min)
+
+```python
+# batch_embeddings.py
+from openai import OpenAI
 from dotenv import load_dotenv
-import json
+from typing import List
 import time
 
 load_dotenv()
 client = OpenAI()
 
-class EmailExtraction(BaseModel):
-    sender: str
-    subject: str
-    is_urgent: bool
-    action_items: List[str]
-    sentiment: str  # positive, negative, neutral
+def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
+    """Get embeddings for multiple texts in one API call."""
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texts
+    )
+    return [item.embedding for item in response.data]
 
-def extract_with_retry(email_text: str, max_retries: int = 3) -> EmailExtraction:
-    """Extract email data with retry logic."""
+# Compare single vs batch
+documents = [
+    "Python is a programming language",
+    "Machine learning uses algorithms",
+    "Neural networks are inspired by brains",
+    "Data science analyzes large datasets",
+    "Natural language processing handles text"
+]
+
+# Batch method (faster!)
+print("Batch method:")
+start = time.time()
+embeddings = get_embeddings_batch(documents)
+batch_time = time.time() - start
+print(f"  Time: {batch_time:.3f}s for {len(documents)} documents")
+print(f"  Got {len(embeddings)} embeddings of dimension {len(embeddings[0])}")
+
+# Single method (slower)
+print("\nSingle method:")
+start = time.time()
+single_embeddings = []
+for doc in documents:
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=doc
+    )
+    single_embeddings.append(response.data[0].embedding)
+single_time = time.time() - start
+print(f"  Time: {single_time:.3f}s for {len(documents)} documents")
+
+print(f"\nBatch is {single_time/batch_time:.1f}x faster!")
+```
+
+### Task 5: Upgrade Your RAG (60 min)
+
+Replace keyword search with semantic search:
+
+```python
+# semantic_rag.py
+from openai import OpenAI
+from dotenv import load_dotenv
+from pathlib import Path
+import numpy as np
+from typing import List
+from dataclasses import dataclass
+
+load_dotenv()
+client = OpenAI()
+
+@dataclass
+class Document:
+    content: str
+    filename: str
+    embedding: List[float]
+
+def get_embedding(text: str) -> List[float]:
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text
+    )
+    return response.data[0].embedding
+
+def cosine_similarity(a: List[float], b: List[float]) -> float:
+    a, b = np.array(a), np.array(b)
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+class SemanticRAG:
+    """RAG with semantic search instead of keyword search."""
     
-    last_error = None
+    def __init__(self, docs_folder: str):
+        self.documents = []
+        self._load_documents(docs_folder)
     
-    for attempt in range(max_retries):
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": """Extract data from the email. Return JSON:
-{
-    "sender": "name or email",
-    "subject": "email subject/topic",
-    "is_urgent": true or false,
-    "action_items": ["item1", "item2"],
-    "sentiment": "positive/negative/neutral"
-}"""
-                    },
-                    {"role": "user", "content": email_text}
-                ],
-                response_format={"type": "json_object"}
+    def _load_documents(self, folder: str):
+        """Load and embed all documents."""
+        folder_path = Path(folder)
+        
+        for file in folder_path.glob("*.txt"):
+            content = file.read_text()
+            embedding = get_embedding(content)
+            
+            doc = Document(
+                content=content,
+                filename=file.name,
+                embedding=embedding
             )
-            
-            data = json.loads(response.choices[0].message.content)
-            result = EmailExtraction(**data)
-            return result
-            
-        except (json.JSONDecodeError, ValidationError) as e:
-            last_error = e
-            print(f"Attempt {attempt + 1} failed: {e}")
-            time.sleep(0.5)  # Brief pause before retry
+            self.documents.append(doc)
+            print(f"Embedded: {file.name}")
     
-    raise Exception(f"Failed after {max_retries} attempts: {last_error}")
-
-# Test
-email = """
-From: boss@company.com
-Subject: URGENT: Q4 Report Needed
-
-Hi team,
-
-Please complete the Q4 report by tomorrow. Also schedule a review meeting.
-This is top priority!
-
-Thanks,
-John
-"""
-
-result = extract_with_retry(email)
-print(f"Sender: {result.sender}")
-print(f"Urgent: {result.is_urgent}")
-print(f"Actions: {result.action_items}")
-```
-
-### Task 4: Few-Shot Prompting (45 min)
-
-```python
-# few_shot.py
-from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
-client = OpenAI()
-
-def classify_intent(message: str) -> str:
-    """Classify user intent using few-shot prompting."""
-    
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": """Classify the user's intent. Examples:
-
-Message: "I want to cancel my subscription"
-Intent: cancellation
-
-Message: "How do I reset my password?"
-Intent: support
-
-Message: "What plans do you offer?"
-Intent: pricing
-
-Message: "Your product is amazing!"
-Intent: feedback
-
-Message: "I can't login to my account"
-Intent: support
-
-Respond with only the intent category."""
-            },
-            {"role": "user", "content": message}
-        ]
-    )
-    
-    return response.choices[0].message.content.strip().lower()
-
-# Test various messages
-messages = [
-    "I want a refund",
-    "How much does the pro plan cost?",
-    "I love using your app!",
-    "My payment didn't go through",
-    "Please delete my account"
-]
-
-for msg in messages:
-    intent = classify_intent(msg)
-    print(f"'{msg}' → {intent}")
-```
-
-### Task 5: Chain-of-Thought (45 min)
-
-```python
-# chain_of_thought.py
-from openai import OpenAI
-from pydantic import BaseModel
-from dotenv import load_dotenv
-import json
-
-load_dotenv()
-client = OpenAI()
-
-class ReasonedAnswer(BaseModel):
-    reasoning: str
-    answer: str
-    confidence: float
-
-def answer_with_reasoning(question: str) -> ReasonedAnswer:
-    """Get an answer with step-by-step reasoning."""
-    
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": """Think through the problem step by step before answering.
-
-Return JSON:
-{
-    "reasoning": "Step 1: ... Step 2: ... Step 3: ...",
-    "answer": "Your final answer",
-    "confidence": 0.0 to 1.0
-}"""
-            },
-            {"role": "user", "content": question}
-        ],
-        response_format={"type": "json_object"}
-    )
-    
-    data = json.loads(response.choices[0].message.content)
-    return ReasonedAnswer(**data)
-
-# Test
-questions = [
-    "If a train leaves at 9am going 60mph, and another leaves at 10am going 80mph, when do they meet?",
-    "Should I use Python or JavaScript for a machine learning project?",
-    "A bat and ball cost $1.10 total. The bat costs $1 more than the ball. How much is the ball?"
-]
-
-for q in questions:
-    result = answer_with_reasoning(q)
-    print(f"\nQ: {q}")
-    print(f"Reasoning: {result.reasoning}")
-    print(f"Answer: {result.answer}")
-    print(f"Confidence: {result.confidence}")
-```
-
-### Task 6: Upgrade Your Chatbot (60 min)
-
-Add structured output to your Week 2 chatbot:
-
-```python
-# structured_chatbot.py
-from openai import OpenAI
-from pydantic import BaseModel
-from typing import List, Optional
-from dotenv import load_dotenv
-import json
-
-load_dotenv()
-client = OpenAI()
-
-class ChatResponse(BaseModel):
-    message: str
-    mood: str  # helpful, curious, apologetic, enthusiastic
-    follow_up_questions: List[str] = []
-    topic: str
-    confidence: float
-
-class StructuredChatbot:
-    def __init__(self, system_prompt: str):
-        self.system_prompt = system_prompt
-        self.messages = []
-    
-    def chat(self, user_message: str) -> ChatResponse:
-        """Get a structured response from the chatbot."""
+    def search(self, query: str, top_k: int = 2) -> List[Document]:
+        """Find most relevant documents using semantic search."""
+        query_embedding = get_embedding(query)
         
-        self.messages.append({"role": "user", "content": user_message})
+        # Calculate similarities
+        scored = []
+        for doc in self.documents:
+            score = cosine_similarity(query_embedding, doc.embedding)
+            scored.append((doc, score))
         
-        system = f"""{self.system_prompt}
-
-Always respond with JSON:
-{{
-    "message": "your response to the user",
-    "mood": "helpful/curious/apologetic/enthusiastic",
-    "follow_up_questions": ["suggested question 1", "suggested question 2"],
-    "topic": "the main topic discussed",
-    "confidence": 0.0 to 1.0 (how confident you are)
-}}"""
+        # Sort by similarity
+        scored.sort(key=lambda x: x[1], reverse=True)
         
+        return [doc for doc, score in scored[:top_k]]
+    
+    def ask(self, question: str) -> str:
+        """Ask a question, get answer from documents."""
+        
+        # Semantic search
+        relevant_docs = self.search(question, top_k=2)
+        
+        # Build context
+        context = "\n\n".join([
+            f"[{doc.filename}]:\n{doc.content}"
+            for doc in relevant_docs
+        ])
+        
+        # Generate answer
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": system},
-                *self.messages
-            ],
-            response_format={"type": "json_object"}
+                {"role": "system", "content": "Answer based on the provided context only."},
+                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"}
+            ]
         )
         
-        data = json.loads(response.choices[0].message.content)
-        result = ChatResponse(**data)
-        
-        # Store just the message in history
-        self.messages.append({"role": "assistant", "content": result.message})
-        
-        return result
+        return response.choices[0].message.content
 
-# Interactive test
+# Test
 if __name__ == "__main__":
-    bot = StructuredChatbot("You are a helpful coding assistant.")
+    rag = SemanticRAG("docs")
     
-    print("Structured Chatbot! Type 'quit' to exit.\n")
+    # These queries now work with synonyms!
+    questions = [
+        "What's the PTO policy?",  # Finds "vacation" docs
+        "Can I work remotely?",     # Finds "work from home" docs
+        "What retirement plans exist?"  # Finds "401k" docs
+    ]
     
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() == 'quit':
-            break
-        
-        response = bot.chat(user_input)
-        
-        print(f"AI [{response.mood}]: {response.message}")
-        if response.follow_up_questions:
-            print(f"   You could ask: {response.follow_up_questions[0]}")
-        print()
+    for q in questions:
+        print(f"\nQ: {q}")
+        answer = rag.ask(q)
+        print(f"A: {answer}")
 ```
 
-### Task 7: Human-in-the-Loop Approval (60 min)
-
-Build an email assistant that requires human approval before sending:
+### Task 6: Compare Models (45 min)
 
 ```python
-# human_in_loop.py
+# compare_models.py
 from openai import OpenAI
-from pydantic import BaseModel
-from typing import Literal
 from dotenv import load_dotenv
-import json
+import numpy as np
+import time
 
 load_dotenv()
 client = OpenAI()
 
-class EmailDraft(BaseModel):
-    to: str
-    subject: str
-    body: str
-    confidence: float
-    risk_level: Literal["low", "medium", "high"]
-    needs_review: bool
+def get_embedding(text: str, model: str) -> list:
+    response = client.embeddings.create(model=model, input=text)
+    return response.data[0].embedding
 
-class ApprovalResult(BaseModel):
-    approved: bool
-    edited_body: str | None = None
-    reason: str | None = None
+def cosine_similarity(a, b):
+    a, b = np.array(a), np.array(b)
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
-def draft_email(request: str) -> EmailDraft:
-    """AI drafts an email based on user request."""
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": """Draft a professional email based on the request.
-Return JSON:
-{
-    "to": "recipient email",
-    "subject": "email subject",
-    "body": "email body",
-    "confidence": 0.0-1.0,
-    "risk_level": "low/medium/high",
-    "needs_review": true if sensitive content or low confidence
-}"""
-            },
-            {"role": "user", "content": request}
-        ],
-        response_format={"type": "json_object"}
-    )
-    return EmailDraft(**json.loads(response.choices[0].message.content))
+# Test pairs
+test_pairs = [
+    ("I love pizza", "Pizza is my favorite food"),
+    ("I love pizza", "I hate pizza"),
+    ("The stock market crashed", "Financial markets declined sharply"),
+    ("A cat sleeps on the couch", "The weather is sunny today")
+]
 
-def get_human_approval(draft: EmailDraft) -> ApprovalResult:
-    """Present draft to human for approval."""
-    print("\n" + "="*50)
-    print("📧 EMAIL DRAFT FOR APPROVAL")
+models = ["text-embedding-3-small", "text-embedding-3-large"]
+
+for model in models:
+    print(f"\n{'='*50}")
+    print(f"Model: {model}")
     print("="*50)
-    print(f"To: {draft.to}")
-    print(f"Subject: {draft.subject}")
-    print(f"Risk Level: {draft.risk_level}")
-    print(f"AI Confidence: {draft.confidence:.0%}")
-    print("-"*50)
-    print(draft.body)
-    print("-"*50)
     
-    choice = input("\n[A]pprove / [E]dit / [R]eject: ").strip().lower()
+    start = time.time()
     
-    if choice == 'a':
-        return ApprovalResult(approved=True)
-    elif choice == 'e':
-        edited = input("Enter corrected body: ")
-        return ApprovalResult(approved=True, edited_body=edited)
-    else:
-        reason = input("Rejection reason: ")
-        return ApprovalResult(approved=False, reason=reason)
+    for text1, text2 in test_pairs:
+        emb1 = get_embedding(text1, model)
+        emb2 = get_embedding(text2, model)
+        sim = cosine_similarity(emb1, emb2)
+        print(f"{sim:.4f} | '{text1}' vs '{text2}'")
+    
+    elapsed = time.time() - start
+    print(f"\nTime: {elapsed:.2f}s | Dimensions: {len(emb1)}")
+```
 
-def send_email(draft: EmailDraft):
-    """Simulate sending email."""
-    print(f"\n✅ Email sent to {draft.to}!")
+---
 
-def email_with_approval(request: str):
-    """Complete flow: draft → approval → send."""
-    draft = draft_email(request)
-    
-    # Auto-approve low risk + high confidence
-    if draft.risk_level == "low" and draft.confidence > 0.9 and not draft.needs_review:
-        print("Auto-approved (low risk, high confidence)")
-        send_email(draft)
-        return
-    
-    # Otherwise, get human approval
-    approval = get_human_approval(draft)
-    
-    if approval.approved:
-        if approval.edited_body:
-            draft.body = approval.edited_body
-        send_email(draft)
-    else:
-        print(f"❌ Email rejected: {approval.reason}")
+## 🎯 Optional Challenges
 
-# Test
-if __name__ == "__main__":
-    email_with_approval("Write an email to john@company.com apologizing for the delayed shipment")
+*Embeddings are the foundation of modern AI search. Master them.*
+
+### Challenge 1: Similarity Threshold Explorer
+Build a tool to find the optimal similarity threshold:
+```python
+# Test different thresholds on your document set
+# At what threshold do you get best precision/recall?
+for threshold in [0.6, 0.7, 0.8, 0.9]:
+    results = search(query, threshold=threshold)
+    # Measure: Are results relevant? Are good results missed?
+```
+
+### Challenge 2: Embedding Visualization
+Reduce embedding dimensions and visualize:
+```python
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+
+# Embed 50 different sentences
+# Use TSNE to reduce to 2D
+# Plot and color by category
+# Do similar meanings cluster together?
+```
+
+### Challenge 3: Multi-Language Embeddings
+Test if embeddings work across languages:
+```python
+# Does "I love programming" (English) 
+# match "Me encanta programar" (Spanish)?
+eng_emb = get_embedding("I love programming")
+sp_emb = get_embedding("Me encanta programar")
+print(cosine_similarity(eng_emb, sp_emb))  # How close?
+```
+
+### Challenge 4: Embedding Cache with TTL
+Build a production cache:
+```python
+class EmbeddingCache:
+    def __init__(self, ttl_hours=24):
+        self.cache = {}
+        self.timestamps = {}
+    
+    def get(self, text):
+        # Return cached if exists and not expired
+        # Otherwise compute, cache, and return
+```
+
+### Challenge 5: Embedding Quality Test Suite
+Create automated tests for your embedding setup:
+```python
+test_cases = [
+    ("king", "queen", "high"),  # Should be high similarity
+    ("dog", "cat", "high"),
+    ("computer", "banana", "low"),  # Should be low
+]
+# Run all tests, report pass/fail
 ```
 
 ---
 
 ## Knowledge Checklist
 
-- [ ] I understand zero-shot, few-shot, and chain-of-thought prompting
-- [ ] I can get JSON responses using `response_format`
-- [ ] I can validate AI outputs with Pydantic
-- [ ] I can build retry logic for failed validations
-- [ ] I can use few-shot examples to improve accuracy
-- [ ] I upgraded my chatbot to return structured data
-- [ ] I understand when and how to implement human-in-the-loop patterns
-- [ ] I can build confidence-based approval workflows
+- [ ] I understand that embeddings convert text to numbers
+- [ ] I can generate embeddings using OpenAI's API
+- [ ] I can calculate cosine similarity between vectors
+- [ ] I can build semantic search with embeddings
+- [ ] I understand the difference between small and large models
+- [ ] I upgraded my RAG to use semantic search
 
 ---
 
 ## Deliverables
 
-1. `json_basics.py` — Basic JSON extraction
-2. `pydantic_validation.py` — Validated extraction
-3. `retry_logic.py` — Retry on validation failure
-4. `few_shot.py` — Intent classifier with examples
-5. `structured_chatbot.py` — Chatbot with structured responses
-6. `human_in_loop.py` — Email assistant with approval workflow
+1. `first_embedding.py` — Basic embedding generation
+2. `similarity.py` — Similarity calculations
+3. `semantic_search.py` — Search by meaning
+4. `batch_embeddings.py` — Efficient batch processing
+5. `semantic_rag.py` — RAG with semantic search
+6. `compare_models.py` — Model comparison
 
 ---
 
 ## What's Next?
 
-Next week, you'll connect your chatbot to your own documents! This is called RAG (Retrieval-Augmented Generation) — the most important technique in AI engineering.
+Next week you'll build a proper RAG system with:
+- Document chunking (splitting large docs)
+- Vector databases (Qdrant) for fast search
+- Better context construction
 
 ---
 
 ## Resources
 
-- [OpenAI JSON Mode](https://platform.openai.com/docs/guides/structured-outputs)
-- [Pydantic Documentation](https://docs.pydantic.dev/)
-- [Prompt Engineering Guide](https://www.promptingguide.ai/)
+- [OpenAI Embeddings Guide](https://platform.openai.com/docs/guides/embeddings)
+- [Understanding Embeddings](https://www.youtube.com/watch?v=5MaWmXwxFNQ)
+- [Cosine Similarity Explained](https://www.pinecone.io/learn/cosine-similarity/)

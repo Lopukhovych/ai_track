@@ -1,30 +1,32 @@
-# Portfolio Project #1: RAG Q&A System
+# Portfolio Project #1: Secure HR Q&A Bot
 
-**Weeks 4-8 Milestone Project**
+**Week 6 Milestone** | Combines skills from Weeks 1-6
 
-Build a production-ready Q&A system that answers questions from your own documents.
+Build a production-ready HR assistant that answers questions from company documents, with security guardrails and quality evaluation.
 
 ---
 
 ## Requirements
 
-### Core Features
-- [ ] Document ingestion (PDF, TXT, MD support)
+### Core Features (Weeks 1-4)
+- [ ] Document ingestion (TXT, MD, PDF support)
 - [ ] Text chunking with overlap
-- [ ] Embedding generation and storage
-- [ ] Semantic search retrieval
-- [ ] Answer generation with citations
+- [ ] Embedding generation and storage (Qdrant)
+- [ ] Semantic search retrieval with citations
+- [ ] Answer generation grounded in documents
 
-### Production Quality
-- [ ] Input validation
-- [ ] Error handling
-- [ ] Basic prompt injection protection
-- [ ] Response caching
+### Security (Week 6)
+- [ ] Input validation — detect prompt injection attempts
+- [ ] PII detection and redaction (emails, SSNs, phone numbers)
+- [ ] Content moderation (OpenAI API or `granite3.1-guardian`)
+- [ ] Hardened system prompt
+- [ ] Output filtering — check for leaked instructions or hallucinations
 
-### Evaluation
-- [ ] At least 20 test questions with expected answers
+### Evaluation (Week 5)
+- [ ] At least 20 test Q&A pairs with expected answers
 - [ ] Retrieval metrics: Precision@k, Recall@k
-- [ ] Generation quality checks
+- [ ] Generation quality: faithfulness, relevance
+- [ ] Red-team test suite (10+ adversarial prompts)
 
 ---
 
@@ -33,20 +35,19 @@ Build a production-ready Q&A system that answers questions from your own documen
 ```
 01_rag_qa_system/
 ├── README.md
-├── requirements.txt
-├── .env
+├── .env.example
 ├── src/
 │   ├── __init__.py
-│   ├── ingestion.py      # Document loading & chunking
-│   ├── embeddings.py     # Embedding generation
-│   ├── retrieval.py      # Vector search
-│   ├── generation.py     # Answer generation
-│   └── main.py           # CLI or API entry point
+│   ├── app.py              # Main chatbot entry point
+│   ├── document_store.py   # Document loading, chunking, Qdrant
+│   ├── security.py         # Input validation, PII, output filter
+│   ├── evaluator.py        # Quality metrics and test runner
+│   └── main.py             # CLI interface
 ├── data/
-│   └── documents/        # Your source documents
+│   └── documents/          # HR policy documents (.txt, .md, .pdf)
 ├── tests/
-│   ├── test_retrieval.py
-│   └── golden_qa.json    # Test questions & answers
+│   ├── golden_qa.json       # Test Q&A pairs
+│   └── red_team.json        # Adversarial test cases
 └── notebooks/
     └── exploration.ipynb
 ```
@@ -56,35 +57,48 @@ Build a production-ready Q&A system that answers questions from your own documen
 ## Getting Started
 
 ```bash
-# 1. Create virtual environment
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+# 1. Install dependencies
+uv sync
 
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Set up environment
+# 2. Set up environment
 cp .env.example .env
-# Edit .env with your OPENAI_API_KEY
+# Edit .env with your OPENAI_API_KEY (or set AI_PROVIDER=ollama)
 
-# 4. Add documents to data/documents/
+# 3. Add HR documents to data/documents/
 
-# 5. Run ingestion
-python src/main.py ingest
+# 4. Ingest documents
+uv run python src/main.py ingest
 
-# 6. Ask questions
-python src/main.py query "What is...?"
+# 5. Ask questions
+uv run python src/main.py query "What is the vacation policy?"
+
+# 6. Run evaluation
+uv run python src/evaluator.py
+```
+
+---
+
+## Model Options
+
+| Task | OpenAI | Ollama |
+|------|--------|--------|
+| Chat / RAG | `gpt-4o-mini` | `llama3.1:8b` |
+| Embeddings | `text-embedding-3-small` | `nomic-embed-text` |
+| Safety classifier | Moderation API | `granite3.1-guardian` |
+
+```bash
+# Local setup
+ollama pull llama3.1:8b && ollama pull nomic-embed-text && ollama pull granite3.1-guardian
+export AI_PROVIDER=ollama
 ```
 
 ---
 
 ## Interview Talking Points
 
-When presenting this project, be ready to discuss:
-
-1. **Chunking strategy** - Why did you choose your chunk size/overlap?
-2. **Embedding model** - Why text-embedding-3-small vs large?
-3. **Retrieval** - How many chunks do you retrieve? Why?
-4. **Hallucination prevention** - How do you ensure grounded answers?
-5. **Evaluation** - How do you measure quality?
-6. **Scaling** - What would change at 1M documents?
+1. **Chunking strategy** — Why did you choose your chunk size and overlap?
+2. **Security layers** — What attacks does your system defend against?
+3. **PII handling** — How do you ensure sensitive data isn't leaked to the LLM?
+4. **Evaluation** — How do you measure both retrieval and generation quality?
+5. **Red-teaming** — What attacks did you test? Which succeeded?
+6. **Scaling** — What would change at 1M documents or 1000 users/day?

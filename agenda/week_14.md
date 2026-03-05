@@ -1,1326 +1,1075 @@
-# Week 14: Production Hardening
+# Week 14: Deployment & Fine-Tuning
 
-**Month:** 4 (Production & Career) | **Duration:** 6-8 hours
+**Month:** 4 (Production & Career) | **Duration:** 8-10 hours
 
 ---
 
 ## Overview
 
-**Connection to previous weeks:** You have MCP for external tools and observability for monitoring. Now ensure the system doesn't fail under pressure — this is what separates demo projects from production-ready applications.
+Time to get your AI apps into production! This week covers **deployment strategies** and when/how to **fine-tune** models for better performance.
 
-Your AI application works, but is it production-ready? This week you'll learn **reliability patterns** that make AI applications robust: rate limiting, caching, retries, and failover.
+**Study Priority:**
+- 🔴 **Core:** Docker basics, deployment patterns (2-3 hours)
+- 🟡 **Recommended:** Cloud deployment setup (2-3 hours)
+- 🟢 **Optional:** Fine-tuning (2-3 hours) — most teams don't need this; read for awareness
+
+---
+
+## Prerequisites
+
+- Basic command line/terminal usage
+- Understanding of HTTP/REST APIs (from Week 14)
+- Optional: Docker Desktop installed ([docker.com](https://docker.com))
 
 ---
 
 ## Learning Objectives
 
 By the end of this week, you will:
-- Implement rate limiting for API calls
-- Build caching layers for AI responses
-- Handle retries with exponential backoff
-- Set up failover between providers
-- Build a resilient AI client
+- Deploy AI applications with Docker
+- Set up cloud deployment (basics)
+- Understand when fine-tuning makes sense
+- Prepare fine-tuning datasets
+- Fine-tune a model with OpenAI
+
+---
+
+## Model Options
+
+| Feature | OpenAI (Paid) | Ollama (Free/Local) |
+|---------|--------------|---------------------|
+| Deployed app model | `gpt-4o-mini` | `llama3.1:8b` (self-hosted in Docker) |
+| Fine-tuning | OpenAI fine-tuning API | Ollama + local `ollama create` from Modelfile |
+
+**Quick start with Ollama:**
+```bash
+ollama pull llama3.1:8b
+# Deploy Ollama itself in Docker alongside your app:
+# docker run -d -p 11434:11434 -v ollama:/root/.ollama ollama/ollama
+```
+
+```python
+from scripts.model_config import get_client, CHAT_MODEL
+# In Docker Compose, set OLLAMA_BASE_URL=http://ollama:11434 and AI_PROVIDER=ollama
+```
+
+> Running Ollama in Docker lets you self-host the entire stack — no external API dependencies in production.
 
 ---
 
 ## Theory (2 hours)
 
-### 1. Why Production Hardening? (30 min)
+### 1. Deployment Options (30 min)
 
-**Production challenges:**
-- API rate limits
-- Network failures
-- Cost control
+| Option | Pros | Cons |
+|--------|------|------|
+| **Serverless** (AWS Lambda, Vercel) | Auto-scaling, pay-per-use | Cold starts, time limits |
+| **Containers** (Docker, K8s) | Portable, consistent | More to manage |
+| **VMs** (EC2, GCE) | Full control | Manual scaling |
+| **PaaS** (Heroku, Railway) | Easy deployment | Less control |
+
+**For AI apps, consider:**
 - Latency requirements
-- Provider outages
+- Cost (compute + API calls)
+- Scaling needs
+- State management (vector DBs, memory)
 
-**The goal:** Your app keeps working even when things go wrong.
+### 2. Docker for AI (30 min)
 
-### 2. Rate Limiting (30 min)
+```dockerfile
+# Dockerfile for AI app
+FROM python:3.11-slim
 
-**Problem:** APIs have limits (e.g., 500 RPM for OpenAI)
+WORKDIR /app
 
-**Solutions:**
-- **Token bucket** — Smooth rate limiting
-- **Sliding window** — Track requests over time
-- **Queue-based** — Buffer requests
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-```
-Request → [Rate Limiter] → API
-           ↓ (if over limit)
-         Wait or Queue
-```
+# Copy app
+COPY . .
 
-### 3. Caching Strategies (30 min)
+# Environment
+ENV PYTHONUNBUFFERED=1
 
-**Why cache?**
-- Reduce API costs (same question = same answer)
-- Lower latency
-- Handle rate limits gracefully
-
-**Cache levels:**
-| Level | Use Case |
-|-------|----------|
-| Exact match | Identical prompts |
-| Semantic | Similar questions |
-| Result | Computed outputs (RAG results) |
-
-### 4. Reliability Patterns (30 min)
-
-**Retries with backoff:**
-```
-Attempt 1: Fail
-Wait 1s
-Attempt 2: Fail
-Wait 2s
-Attempt 3: Fail
-Wait 4s
-Attempt 4: Success!
+# Run
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-**Circuit breaker:**
+### 3. When to Fine-Tune (30 min)
+
+**Fine-tuning = training on your data**
+
+**✅ Good reasons:**
+- Consistent output format
+- Domain-specific style/tone
+- Reduce prompt size
+- Specific classification tasks
+
+**❌ Bad reasons:**
+- Add new knowledge (use RAG instead)
+- Simple instruction following
+- Cost reduction (often not cheaper)
+
 ```
-Closed (normal) → Too many failures → Open (reject all)
-                                          ↓ (after timeout)
-                                    Half-Open (test)
-                                          ↓ (success)
-                                       Closed
+Decision tree:
+Q: Can prompt engineering solve it?
+  → Yes: Don't fine-tune
+  → No: Q: Is it about knowledge?
+         → Yes: Use RAG
+         → No: Consider fine-tuning
 ```
 
-### 5. Secrets Management (30 min)
+### 4. Fine-Tuning Process (30 min)
 
-**Never hardcode credentials!** API keys, connection strings, and secrets must be managed securely.
+```
+1. Prepare dataset (JSONL format)
+   ↓
+2. Upload to OpenAI
+   ↓
+3. Create fine-tuning job
+   ↓
+4. Wait for training
+   ↓
+5. Test the model
+   ↓
+6. Deploy/use new model
+```
 
-**Levels of secret management:**
+### 5. Platform Integration (30 min)
 
-| Level | When to Use | Example |
-|-------|-------------|---------|
-| **Environment variables** | Local development | `export OPENAI_API_KEY=sk-...` |
-| **.env files** | Local + shared config | `.env` file (in .gitignore!) |
-| **Azure Key Vault / AWS Secrets Manager** | Production | Managed secret storage |
-| **Managed Identity** | Azure resources | No secrets needed |
+**AI in enterprise communication tools:**
 
-**Pattern: Environment-based configuration:**
+| Platform | Integration Method | Key Concepts |
+|----------|-------------------|--------------|
+| **Microsoft Teams** | Bot Framework, Power Virtual Agents | Adaptive Cards, webhooks |
+| **Slack** | Bolt SDK, webhooks | Slash commands, modals |
+| **Discord** | discord.py | Commands, interactions |
 
+**Architecture for chat bots:**
+```
+User Message → [Chat Platform] → [Webhook/Bot API]
+                                       ↓
+                               [Your AI Service]
+                                       ↓
+                               [LLM + RAG/Tools]
+                                       ↓
+                               Response → User
+```
+
+**Slack Bot basics:**
 ```python
-# config.py
+# slack_bot_example.py
+from slack_bolt import App
+from slack_bolt.adapter.socket_mode import SocketModeHandler
 import os
-from dataclasses import dataclass
 
-@dataclass
-class Config:
-    openai_api_key: str
-    azure_connection_string: str
-    environment: str
+app = App(token=os.environ["SLACK_BOT_TOKEN"])
+
+@app.message("hello")
+def handle_hello(message, say):
+    user = message["user"]
+    say(f"Hello <@{user}>! How can I help you?")
+
+@app.command("/ask-ai")
+def handle_ask_ai(ack, command, respond):
+    ack()  # Acknowledge the command
     
-    @classmethod
-    def from_env(cls) -> "Config":
-        return cls(
-            openai_api_key=os.environ["OPENAI_API_KEY"],
-            azure_connection_string=os.environ.get("AZURE_CONN_STR", ""),
-            environment=os.environ.get("ENVIRONMENT", "development")
-        )
+    query = command["text"]
+    # Call your AI service here
+    response = call_ai_service(query)
+    
+    respond({
+        "response_type": "in_channel",
+        "text": response
+    })
 
-# Azure Key Vault integration
-from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
-
-def get_secret_from_keyvault(vault_url: str, secret_name: str) -> str:
-    credential = DefaultAzureCredential()
-    client = SecretClient(vault_url=vault_url, credential=credential)
-    return client.get_secret(secret_name).value
+if __name__ == "__main__":
+    handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
+    handler.start()
 ```
 
-**Interview tip:** Know the difference between Managed Identity (no secrets) vs Service Principal (client ID + secret).
-
-### 6. Role-Based Access Control (RBAC) (30 min)
-
-**RBAC principle:** Users get minimum permissions needed for their role.
-
-**AI system RBAC considerations:**
-- **Admin** — Full access, can modify prompts/tools
-- **Developer** — Test access, view logs
-- **User** — Run queries, limited scope
-- **Auditor** — Read-only logs, no execution
-
-**RBAC in Azure OpenAI:**
-
+**API Gateway patterns:**
 ```
-User → [RBAC Check] → Azure OpenAI
-         ↓
-   Cognitive Services OpenAI User (read/use)
-   Cognitive Services OpenAI Contributor (modify)
+Clients → [API Gateway] → [Rate Limiting] → [Auth] → [AI Service]
+               ↓
+         [Logging/Metrics]
 ```
 
-**Implementing RBAC in your app:**
+**Common gateways:**
+- **Azure API Management** — Enterprise, Azure integration
+- **AWS API Gateway** — Serverless, AWS integration
+- **Kong** — Open source, Kubernetes
+- **Nginx** — Simple, widely used
 
-```python
-from enum import Enum
-from typing import Set
-from functools import wraps
+### 6. 🟡 Optional: Full Fine-Tuning Deep Dive
 
-class Role(Enum):
-    ADMIN = "admin"
-    DEVELOPER = "developer"
-    USER = "user"
-    AUDITOR = "auditor"
+Fine-tuning is powerful but often not needed. This content is optional but valuable for interview discussions.
 
-class Permission(Enum):
-    QUERY = "query"
-    VIEW_LOGS = "view_logs"
-    MODIFY_PROMPTS = "modify_prompts"
-    MANAGE_USERS = "manage_users"
-    DELETE_DATA = "delete_data"
+**Dataset requirements:**
+- Minimum: 10 examples (50-100 recommended)
+- Format: JSONL with messages array
+- Quality > Quantity
 
-ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
-    Role.ADMIN: {Permission.QUERY, Permission.VIEW_LOGS, Permission.MODIFY_PROMPTS, 
-                 Permission.MANAGE_USERS, Permission.DELETE_DATA},
-    Role.DEVELOPER: {Permission.QUERY, Permission.VIEW_LOGS, Permission.MODIFY_PROMPTS},
-    Role.USER: {Permission.QUERY},
-    Role.AUDITOR: {Permission.VIEW_LOGS},
-}
-
-def require_permission(permission: Permission):
-    """Decorator to check user permissions."""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(user_role: Role, *args, **kwargs):
-            if permission not in ROLE_PERMISSIONS.get(user_role, set()):
-                raise PermissionError(f"Role {user_role.value} lacks {permission.value}")
-            return func(user_role, *args, **kwargs)
-        return wrapper
-    return decorator
-
-@require_permission(Permission.QUERY)
-def run_ai_query(user_role: Role, query: str) -> str:
-    return f"Processing: {query}"
-
-@require_permission(Permission.MODIFY_PROMPTS)
-def update_prompt(user_role: Role, prompt_id: str, new_prompt: str):
-    return f"Updated prompt {prompt_id}"
-```
+**Cost considerations:**
+- Training: ~$0.008 per 1K tokens (GPT-3.5)
+- Inference: ~3x base model cost
+- Break-even analysis needed!
 
 ---
 
 ## Hands-On Practice (4-6 hours)
 
-### Task 1: Rate Limiter (60 min)
+### Task 1: Dockerize Your AI App (60 min)
 
 ```python
-# rate_limiter.py
-import time
-from collections import deque
-from threading import Lock
-from typing import Optional
+# main.py - FastAPI AI application
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from openai import OpenAI
+import os
 
-class RateLimiter:
-    """Token bucket rate limiter."""
-    
-    def __init__(self, requests_per_minute: int):
-        self.rpm = requests_per_minute
-        self.tokens = requests_per_minute
-        self.last_update = time.time()
-        self.lock = Lock()
-    
-    def _refill(self):
-        """Refill tokens based on time passed."""
-        now = time.time()
-        time_passed = now - self.last_update
-        
-        # Add tokens based on time (RPM / 60 per second)
-        new_tokens = time_passed * (self.rpm / 60)
-        self.tokens = min(self.rpm, self.tokens + new_tokens)
-        self.last_update = now
-    
-    def acquire(self, timeout: Optional[float] = None) -> bool:
-        """Try to acquire a token."""
-        deadline = time.time() + timeout if timeout else None
-        
-        while True:
-            with self.lock:
-                self._refill()
-                
-                if self.tokens >= 1:
-                    self.tokens -= 1
-                    return True
-            
-            if deadline and time.time() >= deadline:
-                return False
-            
-            # Wait a bit before retrying
-            time.sleep(0.1)
-    
-    def wait(self):
-        """Block until a token is available."""
-        while not self.acquire(timeout=0.1):
-            pass
+app = FastAPI(title="AI API")
+client = OpenAI()
 
-class SlidingWindowRateLimiter:
-    """Sliding window rate limiter."""
-    
-    def __init__(self, requests_per_minute: int):
-        self.rpm = requests_per_minute
-        self.window: deque = deque()
-        self.lock = Lock()
-    
-    def _clean_old_requests(self):
-        """Remove requests older than 1 minute."""
-        cutoff = time.time() - 60
-        while self.window and self.window[0] < cutoff:
-            self.window.popleft()
-    
-    def acquire(self) -> bool:
-        """Try to make a request."""
-        with self.lock:
-            self._clean_old_requests()
-            
-            if len(self.window) < self.rpm:
-                self.window.append(time.time())
-                return True
-            
-            return False
-    
-    def wait_time(self) -> float:
-        """Time until next request is allowed."""
-        with self.lock:
-            self._clean_old_requests()
-            
-            if len(self.window) < self.rpm:
-                return 0
-            
-            # Wait until oldest request expires
-            return max(0, 60 - (time.time() - self.window[0]))
+class ChatRequest(BaseModel):
+    message: str
+    system_prompt: str = "You are a helpful assistant."
 
-# Decorator
-def rate_limited(limiter: RateLimiter):
-    """Decorator to rate limit a function."""
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            limiter.wait()
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
-
-# Test
-if __name__ == "__main__":
-    limiter = RateLimiter(requests_per_minute=10)
-    
-    print("Making 15 requests with 10 RPM limit...")
-    for i in range(15):
-        start = time.time()
-        limiter.wait()
-        elapsed = time.time() - start
-        print(f"Request {i+1}: waited {elapsed:.2f}s")
-```
-
-### Task 2: Response Caching (60 min)
-
-```python
-# caching.py
-import hashlib
-import json
-import time
-from typing import Optional, Any
-from dataclasses import dataclass
-from functools import wraps
-
-@dataclass
-class CacheEntry:
-    value: Any
-    created_at: float
-    ttl: float
-    
-    @property
-    def is_expired(self) -> bool:
-        return time.time() > self.created_at + self.ttl
-
-class SimpleCache:
-    """Simple in-memory cache."""
-    
-    def __init__(self, default_ttl: float = 3600):
-        self.cache: dict = {}
-        self.default_ttl = default_ttl
-        self.hits = 0
-        self.misses = 0
-    
-    def _make_key(self, *args, **kwargs) -> str:
-        """Create a cache key from arguments."""
-        data = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True)
-        return hashlib.sha256(data.encode()).hexdigest()[:16]
-    
-    def get(self, key: str) -> Optional[Any]:
-        """Get a value from cache."""
-        entry = self.cache.get(key)
-        
-        if entry is None:
-            self.misses += 1
-            return None
-        
-        if entry.is_expired:
-            del self.cache[key]
-            self.misses += 1
-            return None
-        
-        self.hits += 1
-        return entry.value
-    
-    def set(self, key: str, value: Any, ttl: Optional[float] = None):
-        """Set a value in cache."""
-        self.cache[key] = CacheEntry(
-            value=value,
-            created_at=time.time(),
-            ttl=ttl or self.default_ttl
-        )
-    
-    def clear(self):
-        """Clear all cache entries."""
-        self.cache.clear()
-    
-    @property
-    def stats(self) -> dict:
-        total = self.hits + self.misses
-        return {
-            "hits": self.hits,
-            "misses": self.misses,
-            "hit_rate": round(self.hits / total * 100, 1) if total > 0 else 0,
-            "size": len(self.cache)
-        }
-
-def cached(cache: SimpleCache, ttl: Optional[float] = None):
-    """Decorator to cache function results."""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            key = cache._make_key(func.__name__, *args, **kwargs)
-            
-            # Check cache
-            result = cache.get(key)
-            if result is not None:
-                return result
-            
-            # Call function
-            result = func(*args, **kwargs)
-            
-            # Cache result
-            cache.set(key, result, ttl)
-            return result
-        return wrapper
-    return decorator
-
-# Semantic cache (for similar questions)
-class SemanticCache:
-    """Cache that matches similar prompts."""
-    
-    def __init__(self, similarity_threshold: float = 0.95):
-        self.entries: list = []
-        self.threshold = similarity_threshold
-    
-    def _get_embedding(self, text: str) -> list:
-        """Get embedding for text."""
-        from openai import OpenAI
-        client = OpenAI()
-        
-        response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=text
-        )
-        return response.data[0].embedding
-    
-    def _similarity(self, a: list, b: list) -> float:
-        """Calculate cosine similarity."""
-        import numpy as np
-        a, b = np.array(a), np.array(b)
-        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-    
-    def get(self, prompt: str) -> Optional[str]:
-        """Find a cached response for similar prompt."""
-        if not self.entries:
-            return None
-        
-        query_emb = self._get_embedding(prompt)
-        
-        best_match = None
-        best_score = 0
-        
-        for entry in self.entries:
-            score = self._similarity(query_emb, entry["embedding"])
-            if score > best_score and score >= self.threshold:
-                best_score = score
-                best_match = entry
-        
-        if best_match:
-            print(f"  Cache hit! Similarity: {best_score:.3f}")
-            return best_match["response"]
-        
-        return None
-    
-    def set(self, prompt: str, response: str):
-        """Cache a response."""
-        embedding = self._get_embedding(prompt)
-        self.entries.append({
-            "prompt": prompt,
-            "response": response,
-            "embedding": embedding
-        })
-
-# Test
-if __name__ == "__main__":
-    cache = SimpleCache(default_ttl=60)
-    
-    @cached(cache)
-    def expensive_operation(x):
-        print(f"  Computing {x}...")
-        time.sleep(0.1)
-        return x * 2
-    
-    print("First calls (cache miss):")
-    print(f"  Result: {expensive_operation(5)}")
-    print(f"  Result: {expensive_operation(10)}")
-    
-    print("\nSecond calls (cache hit):")
-    print(f"  Result: {expensive_operation(5)}")
-    print(f"  Result: {expensive_operation(10)}")
-    
-    print(f"\nCache stats: {cache.stats}")
-```
-
-### Task 3: Retry Logic (45 min)
-
-```python
-# retries.py
-import time
-import random
-from typing import TypeVar, Callable, Optional
-from functools import wraps
-
-T = TypeVar('T')
-
-class RetryError(Exception):
-    """Raised when all retries are exhausted."""
-    def __init__(self, message: str, last_error: Exception):
-        super().__init__(message)
-        self.last_error = last_error
-
-def exponential_backoff(
-    attempt: int,
-    base_delay: float = 1.0,
-    max_delay: float = 60.0,
-    jitter: bool = True
-) -> float:
-    """Calculate delay with exponential backoff."""
-    delay = min(base_delay * (2 ** attempt), max_delay)
-    
-    if jitter:
-        delay = delay * (0.5 + random.random())
-    
-    return delay
-
-def retry(
-    max_attempts: int = 3,
-    base_delay: float = 1.0,
-    max_delay: float = 60.0,
-    exceptions: tuple = (Exception,),
-    on_retry: Optional[Callable] = None
-):
-    """Decorator for retrying functions."""
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        @wraps(func)
-        def wrapper(*args, **kwargs) -> T:
-            last_error = None
-            
-            for attempt in range(max_attempts):
-                try:
-                    return func(*args, **kwargs)
-                
-                except exceptions as e:
-                    last_error = e
-                    
-                    if attempt == max_attempts - 1:
-                        raise RetryError(
-                            f"Failed after {max_attempts} attempts",
-                            last_error
-                        )
-                    
-                    delay = exponential_backoff(attempt, base_delay, max_delay)
-                    
-                    if on_retry:
-                        on_retry(attempt + 1, delay, e)
-                    else:
-                        print(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay:.1f}s")
-                    
-                    time.sleep(delay)
-            
-            raise RetryError(f"Failed after {max_attempts} attempts", last_error)
-        return wrapper
-    return decorator
-
-# Specific retry for OpenAI
-from openai import RateLimitError, APIError, APITimeoutError
-
-def retry_openai(max_attempts: int = 3):
-    """Retry decorator specifically for OpenAI calls."""
-    return retry(
-        max_attempts=max_attempts,
-        base_delay=1.0,
-        max_delay=30.0,
-        exceptions=(RateLimitError, APIError, APITimeoutError)
-    )
-
-# Test
-if __name__ == "__main__":
-    call_count = 0
-    
-    @retry(max_attempts=5, base_delay=0.5)
-    def flaky_function():
-        global call_count
-        call_count += 1
-        
-        if call_count < 3:
-            raise ConnectionError(f"Failed on attempt {call_count}")
-        
-        return "Success!"
-    
-    try:
-        result = flaky_function()
-        print(f"Result: {result}")
-        print(f"Total attempts: {call_count}")
-    except RetryError as e:
-        print(f"All retries failed: {e.last_error}")
-```
-
-### Task 4: Circuit Breaker (45 min)
-
-```python
-# circuit_breaker.py
-import time
-from enum import Enum
-from threading import Lock
-from typing import Callable, TypeVar
-from functools import wraps
-
-T = TypeVar('T')
-
-class CircuitState(Enum):
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Failing, reject all
-    HALF_OPEN = "half_open"  # Testing if recovered
-
-class CircuitBreaker:
-    """Circuit breaker pattern implementation."""
-    
-    def __init__(
-        self,
-        failure_threshold: int = 5,
-        recovery_timeout: float = 30.0,
-        half_open_limit: int = 1
-    ):
-        self.failure_threshold = failure_threshold
-        self.recovery_timeout = recovery_timeout
-        self.half_open_limit = half_open_limit
-        
-        self.state = CircuitState.CLOSED
-        self.failure_count = 0
-        self.last_failure_time = 0
-        self.half_open_calls = 0
-        self.lock = Lock()
-    
-    def can_proceed(self) -> bool:
-        """Check if a call can proceed."""
-        with self.lock:
-            if self.state == CircuitState.CLOSED:
-                return True
-            
-            if self.state == CircuitState.OPEN:
-                # Check if recovery timeout has passed
-                if time.time() - self.last_failure_time >= self.recovery_timeout:
-                    self.state = CircuitState.HALF_OPEN
-                    self.half_open_calls = 0
-                    return True
-                return False
-            
-            # HALF_OPEN
-            if self.half_open_calls < self.half_open_limit:
-                self.half_open_calls += 1
-                return True
-            return False
-    
-    def record_success(self):
-        """Record a successful call."""
-        with self.lock:
-            if self.state == CircuitState.HALF_OPEN:
-                self.state = CircuitState.CLOSED
-                self.failure_count = 0
-                print("Circuit CLOSED (recovered)")
-            self.failure_count = 0
-    
-    def record_failure(self):
-        """Record a failed call."""
-        with self.lock:
-            self.failure_count += 1
-            self.last_failure_time = time.time()
-            
-            if self.state == CircuitState.HALF_OPEN:
-                self.state = CircuitState.OPEN
-                print("Circuit OPEN (failed during recovery)")
-            elif self.failure_count >= self.failure_threshold:
-                self.state = CircuitState.OPEN
-                print(f"Circuit OPEN (threshold reached: {self.failure_count})")
-    
-    @property
-    def status(self) -> dict:
-        return {
-            "state": self.state.value,
-            "failure_count": self.failure_count,
-            "last_failure": self.last_failure_time
-        }
-
-class CircuitOpenError(Exception):
-    """Raised when circuit is open."""
-    pass
-
-def circuit_breaker(breaker: CircuitBreaker):
-    """Decorator to apply circuit breaker."""
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        @wraps(func)
-        def wrapper(*args, **kwargs) -> T:
-            if not breaker.can_proceed():
-                raise CircuitOpenError("Circuit is open, call rejected")
-            
-            try:
-                result = func(*args, **kwargs)
-                breaker.record_success()
-                return result
-            except Exception as e:
-                breaker.record_failure()
-                raise
-        return wrapper
-    return decorator
-
-# Test
-if __name__ == "__main__":
-    breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=5)
-    call_count = 0
-    
-    @circuit_breaker(breaker)
-    def unreliable_service():
-        global call_count
-        call_count += 1
-        
-        # Fail for first 5 calls
-        if call_count <= 5:
-            raise ConnectionError(f"Service unavailable (call {call_count})")
-        
-        return "Success!"
-    
-    print("Testing circuit breaker...")
-    
-    for i in range(10):
-        try:
-            result = unreliable_service()
-            print(f"  Call {i+1}: {result}")
-        except CircuitOpenError:
-            print(f"  Call {i+1}: Rejected (circuit open)")
-        except ConnectionError as e:
-            print(f"  Call {i+1}: Failed - {e}")
-        
-        print(f"    State: {breaker.status['state']}")
-        time.sleep(1)
-```
-
-### Task 5: Provider Failover (45 min)
-
-```python
-# failover.py
-"""
-Failover between multiple AI providers.
-"""
-from typing import List, Optional
-from dataclasses import dataclass
-import time
-
-@dataclass
-class Provider:
-    name: str
-    client: any
+class ChatResponse(BaseModel):
+    response: str
     model: str
-    priority: int = 0
-    is_healthy: bool = True
-    last_failure: float = 0
 
-class MultiProviderClient:
-    """Client that fails over between providers."""
-    
-    def __init__(self):
-        self.providers: List[Provider] = []
-        self.unhealthy_timeout = 60  # Seconds before retrying unhealthy provider
-    
-    def add_provider(self, name: str, client, model: str, priority: int = 0):
-        """Add a provider."""
-        self.providers.append(Provider(
-            name=name,
-            client=client,
-            model=model,
-            priority=priority
-        ))
-        # Sort by priority
-        self.providers.sort(key=lambda p: p.priority, reverse=True)
-    
-    def _get_healthy_providers(self) -> List[Provider]:
-        """Get list of healthy providers."""
-        now = time.time()
-        healthy = []
-        
-        for p in self.providers:
-            if p.is_healthy:
-                healthy.append(p)
-            elif now - p.last_failure >= self.unhealthy_timeout:
-                # Give unhealthy provider another chance
-                p.is_healthy = True
-                healthy.append(p)
-        
-        return healthy
-    
-    def chat(self, message: str) -> dict:
-        """Make a chat request with failover."""
-        
-        healthy = self._get_healthy_providers()
-        
-        if not healthy:
-            raise Exception("No healthy providers available")
-        
-        for provider in healthy:
-            try:
-                print(f"  Trying {provider.name}...")
-                
-                response = provider.client.chat.completions.create(
-                    model=provider.model,
-                    messages=[{"role": "user", "content": message}]
-                )
-                
-                return {
-                    "provider": provider.name,
-                    "content": response.choices[0].message.content,
-                    "model": provider.model
-                }
-            
-            except Exception as e:
-                print(f"  {provider.name} failed: {e}")
-                provider.is_healthy = False
-                provider.last_failure = time.time()
-                continue
-        
-        raise Exception("All providers failed")
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
 
-# Test with mock providers
-class MockClient:
-    def __init__(self, name: str, should_fail: bool = False):
-        self.name = name
-        self.should_fail = should_fail
-    
-    class Completions:
-        def __init__(self, parent):
-            self.parent = parent
+@app.post("/chat", response_model=ChatResponse)
+def chat(request: ChatRequest):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": request.system_prompt},
+                {"role": "user", "content": request.message}
+            ]
+        )
         
-        def create(self, **kwargs):
-            if self.parent.should_fail:
-                raise ConnectionError(f"{self.parent.name} is down")
-            
-            class Choice:
-                class Message:
-                    content = f"Response from {self.parent.name}"
-                message = Message()
-            
-            class Response:
-                choices = [Choice()]
-            
-            return Response()
-    
-    @property
-    def chat(self):
-        return MockClient.Completions(self)
+        return ChatResponse(
+            response=response.choices[0].message.content,
+            model="gpt-4o-mini"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    client = MultiProviderClient()
-    
-    # Add providers with different priorities
-    client.add_provider("OpenAI", MockClient("OpenAI", should_fail=True), "gpt-4", priority=3)
-    client.add_provider("Anthropic", MockClient("Anthropic"), "claude-3", priority=2)
-    client.add_provider("Local", MockClient("Local"), "llama-3", priority=1)
-    
-    print("Testing failover...")
-    result = client.chat("Hello!")
-    print(f"Response from {result['provider']}: {result['content']}")
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
-### Task 6: Resilient AI Client (60 min)
+```dockerfile
+# Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY main.py .
+
+# Environment variables (provide at runtime)
+ENV OPENAI_API_KEY=""
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+# Run
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+```txt
+# requirements.txt
+fastapi==0.109.0
+uvicorn==0.27.0
+openai==1.12.0
+python-dotenv==1.0.0
+pydantic==2.6.0
+```
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  ai-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+```
+
+### Task 2: Environment Configuration (30 min)
 
 ```python
-# resilient_client.py
+# config.py - Production configuration
+from pydantic_settings import BaseSettings
+from functools import lru_cache
+
+class Settings(BaseSettings):
+    """Application settings from environment."""
+    
+    # API Keys
+    openai_api_key: str
+    
+    # App settings
+    app_name: str = "AI API"
+    debug: bool = False
+    log_level: str = "INFO"
+    
+    # AI settings
+    default_model: str = "gpt-4o-mini"
+    max_tokens: int = 1000
+    temperature: float = 0.7
+    
+    # Rate limiting
+    rate_limit_rpm: int = 60
+    
+    # Caching
+    cache_ttl: int = 3600
+    
+    class Config:
+        env_file = ".env"
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get cached settings."""
+    return Settings()
+
+# Usage in FastAPI
+from fastapi import Depends
+
+def get_openai_client(settings: Settings = Depends(get_settings)):
+    """Dependency to get OpenAI client."""
+    from openai import OpenAI
+    return OpenAI(api_key=settings.openai_api_key)
+```
+
+```bash
+# .env.example
+OPENAI_API_KEY=sk-...
+APP_NAME=AI API
+DEBUG=false
+LOG_LEVEL=INFO
+DEFAULT_MODEL=gpt-4o-mini
+RATE_LIMIT_RPM=60
+```
+
+### Task 3: Prepare Fine-Tuning Data (60 min)
+
+```python
+# prepare_finetuning_data.py
 """
-Production-ready AI client with all reliability patterns.
+Prepare data for fine-tuning.
+Format: JSONL with {"messages": [...]} format
+"""
+import json
+from typing import List, Dict
+
+def create_training_example(
+    system: str,
+    user: str,
+    assistant: str
+) -> dict:
+    """Create a single training example."""
+    return {
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+            {"role": "assistant", "content": assistant}
+        ]
+    }
+
+def prepare_customer_support_data() -> List[dict]:
+    """Example: Customer support tone training."""
+    
+    system_prompt = "You are a friendly customer support agent for TechCo. Be helpful, empathetic, and professional."
+    
+    examples = [
+        # Example 1: Order status
+        {
+            "user": "Where is my order?",
+            "assistant": "I'd be happy to help you track your order! Could you please share your order number? It starts with 'TC-' followed by 8 digits. You can find it in your confirmation email. 📦"
+        },
+        # Example 2: Refund request
+        {
+            "user": "I want a refund",
+            "assistant": "I understand, and I'm here to help make this as smooth as possible. Could you tell me a bit more about what happened? This helps me ensure we get you the right solution. What product would you like to return?"
+        },
+        # Example 3: Technical issue
+        {
+            "user": "The app keeps crashing",
+            "assistant": "I'm sorry you're experiencing this frustration! Let's get this sorted out quickly. Could you tell me:\n\n1. What device are you using?\n2. When did this start happening?\n3. What were you doing when it crashed?\n\nThis helps me pinpoint the issue faster. 🔧"
+        },
+        # Example 4: Positive feedback
+        {
+            "user": "Your product is amazing!",
+            "assistant": "Thank you so much for the kind words! 🎉 It truly makes our day to hear that you're enjoying the product. Is there anything else I can help you with, or any features you'd love to see in the future?"
+        },
+        # Example 5: Complaint
+        {
+            "user": "This is the worst service ever",
+            "assistant": "I'm really sorry to hear about your experience, and I understand your frustration. Your feedback matters to us. Could you share more details about what happened? I want to personally make sure we address this and make things right for you."
+        }
+    ]
+    
+    training_data = []
+    for ex in examples:
+        training_data.append(create_training_example(
+            system=system_prompt,
+            user=ex["user"],
+            assistant=ex["assistant"]
+        ))
+    
+    return training_data
+
+def save_jsonl(data: List[dict], filename: str):
+    """Save data as JSONL file."""
+    with open(filename, 'w', encoding='utf-8') as f:
+        for item in data:
+            f.write(json.dumps(item) + '\n')
+    print(f"Saved {len(data)} examples to {filename}")
+
+def validate_format(filename: str) -> bool:
+    """Validate JSONL format for fine-tuning."""
+    errors = []
+    
+    with open(filename, 'r', encoding='utf-8') as f:
+        for i, line in enumerate(f, 1):
+            try:
+                data = json.loads(line)
+                
+                # Check required fields
+                if "messages" not in data:
+                    errors.append(f"Line {i}: Missing 'messages' field")
+                    continue
+                
+                # Check messages format
+                for msg in data["messages"]:
+                    if "role" not in msg or "content" not in msg:
+                        errors.append(f"Line {i}: Invalid message format")
+                
+                # Check roles
+                roles = [m["role"] for m in data["messages"]]
+                if "assistant" not in roles:
+                    errors.append(f"Line {i}: Missing assistant message")
+                    
+            except json.JSONDecodeError:
+                errors.append(f"Line {i}: Invalid JSON")
+    
+    if errors:
+        print("Validation errors:")
+        for e in errors:
+            print(f"  - {e}")
+        return False
+    
+    print("✓ Validation passed!")
+    return True
+
+# Generate sample data
+if __name__ == "__main__":
+    # Create training data
+    training_data = prepare_customer_support_data()
+    
+    # We need at least 10 examples for fine-tuning
+    # Let's duplicate and modify for demonstration
+    expanded_data = training_data * 3  # 15 examples
+    
+    # Save
+    save_jsonl(expanded_data, "training_data.jsonl")
+    
+    # Validate
+    validate_format("training_data.jsonl")
+```
+
+### Task 4: Fine-Tune a Model (60 min)
+
+```python
+# fine_tune.py
+"""
+Fine-tune an OpenAI model.
+Note: Fine-tuning costs money. Use with real projects only.
 """
 from openai import OpenAI
 from dotenv import load_dotenv
-from rate_limiter import RateLimiter
-from caching import SimpleCache, cached
-from retries import retry
-from circuit_breaker import CircuitBreaker, circuit_breaker, CircuitOpenError
 import time
 
 load_dotenv()
+client = OpenAI()
 
-class ResilientAIClient:
-    """AI client with rate limiting, caching, retries, and circuit breaker."""
+def upload_training_file(filename: str) -> str:
+    """Upload training file to OpenAI."""
     
-    def __init__(
-        self,
-        requests_per_minute: int = 50,
-        cache_ttl: int = 3600,
-        max_retries: int = 3,
-        circuit_threshold: int = 5
-    ):
-        self.client = OpenAI()
-        self.rate_limiter = RateLimiter(requests_per_minute)
-        self.cache = SimpleCache(default_ttl=cache_ttl)
-        self.breaker = CircuitBreaker(failure_threshold=circuit_threshold)
-        self.max_retries = max_retries
-        
-        # Metrics
-        self.total_calls = 0
-        self.cache_hits = 0
-        self.retries = 0
-        self.failures = 0
+    with open(filename, 'rb') as f:
+        file = client.files.create(
+            file=f,
+            purpose="fine-tune"
+        )
     
-    def chat(self, message: str, use_cache: bool = True) -> str:
-        """Make a resilient chat request."""
-        
-        self.total_calls += 1
-        
-        # Check cache
-        if use_cache:
-            cache_key = self.cache._make_key("chat", message)
-            cached_response = self.cache.get(cache_key)
-            if cached_response:
-                self.cache_hits += 1
-                return cached_response
-        
-        # Rate limit
-        self.rate_limiter.wait()
-        
-        # Make call with circuit breaker and retries
-        try:
-            response = self._call_with_resilience(message)
-            
-            # Cache response
-            if use_cache:
-                self.cache.set(cache_key, response)
-            
-            return response
-        
-        except CircuitOpenError:
-            self.failures += 1
-            raise
+    print(f"Uploaded file: {file.id}")
+    return file.id
+
+def create_fine_tune_job(file_id: str, model: str = "gpt-4o-mini-2024-07-18") -> str:
+    """Create a fine-tuning job."""
     
-    def _call_with_resilience(self, message: str) -> str:
-        """Internal method with circuit breaker and retries."""
-        
-        last_error = None
-        
-        for attempt in range(self.max_retries):
-            # Check circuit breaker
-            if not self.breaker.can_proceed():
-                raise CircuitOpenError("Circuit is open")
-            
-            try:
-                response = self.client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": message}]
-                )
-                
-                self.breaker.record_success()
-                return response.choices[0].message.content
-            
-            except Exception as e:
-                last_error = e
-                self.breaker.record_failure()
-                self.retries += 1
-                
-                if attempt < self.max_retries - 1:
-                    delay = 2 ** attempt
-                    print(f"Retry {attempt + 1} in {delay}s...")
-                    time.sleep(delay)
-        
-        self.failures += 1
-        raise last_error
-    
-    @property
-    def stats(self) -> dict:
-        return {
-            "total_calls": self.total_calls,
-            "cache_hits": self.cache_hits,
-            "cache_hit_rate": f"{self.cache_hits / self.total_calls * 100:.1f}%" if self.total_calls > 0 else "0%",
-            "retries": self.retries,
-            "failures": self.failures,
-            "circuit_state": self.breaker.status["state"]
+    job = client.fine_tuning.jobs.create(
+        training_file=file_id,
+        model=model,
+        hyperparameters={
+            "n_epochs": 3  # Usually 3-5 is enough
         }
+    )
+    
+    print(f"Created fine-tuning job: {job.id}")
+    return job.id
+
+def check_job_status(job_id: str) -> dict:
+    """Check the status of a fine-tuning job."""
+    
+    job = client.fine_tuning.jobs.retrieve(job_id)
+    
+    return {
+        "status": job.status,
+        "model": job.fine_tuned_model,
+        "created_at": job.created_at,
+        "finished_at": job.finished_at,
+        "error": job.error
+    }
+
+def wait_for_completion(job_id: str, poll_interval: int = 30):
+    """Wait for fine-tuning to complete."""
+    
+    print("Waiting for fine-tuning to complete...")
+    
+    while True:
+        status = check_job_status(job_id)
+        print(f"  Status: {status['status']}")
+        
+        if status["status"] == "succeeded":
+            print(f"✓ Fine-tuning complete!")
+            print(f"  Model: {status['model']}")
+            return status
+        
+        if status["status"] == "failed":
+            print(f"✗ Fine-tuning failed: {status['error']}")
+            return status
+        
+        time.sleep(poll_interval)
+
+def test_fine_tuned_model(model_name: str, test_messages: list):
+    """Test the fine-tuned model."""
+    
+    print(f"\nTesting model: {model_name}")
+    
+    for test in test_messages:
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "You are a friendly customer support agent for TechCo."},
+                {"role": "user", "content": test}
+            ]
+        )
+        
+        print(f"\nUser: {test}")
+        print(f"Bot: {response.choices[0].message.content}")
+
+def list_fine_tuned_models():
+    """List all fine-tuned models."""
+    
+    jobs = client.fine_tuning.jobs.list(limit=10)
+    
+    print("\nFine-tuning jobs:")
+    for job in jobs.data:
+        print(f"  {job.id}: {job.status} -> {job.fine_tuned_model or 'N/A'}")
+
+# Main workflow (comment out parts you don't want to run)
+if __name__ == "__main__":
+    # Step 1: Upload training file
+    # file_id = upload_training_file("training_data.jsonl")
+    
+    # Step 2: Create fine-tuning job
+    # job_id = create_fine_tune_job(file_id)
+    
+    # Step 3: Wait for completion
+    # result = wait_for_completion(job_id)
+    
+    # Step 4: Test the model
+    # test_fine_tuned_model(
+    #     "ft:gpt-4o-mini-2024-07-18:your-org::xxx",
+    #     [
+    #         "I need help with my account",
+    #         "Your app is broken",
+    #         "Thanks for the quick response!"
+    #     ]
+    # )
+    
+    # List existing jobs
+    list_fine_tuned_models()
+```
+
+### Task 5: Compare Base vs Fine-Tuned (30 min)
+
+```python
+# compare_models.py
+"""
+Compare base model vs fine-tuned model responses.
+"""
+from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
+client = OpenAI()
+
+def compare_responses(
+    base_model: str,
+    fine_tuned_model: str,
+    system_prompt: str,
+    test_messages: list
+):
+    """Compare responses from two models."""
+    
+    print("=" * 60)
+    print("MODEL COMPARISON")
+    print("=" * 60)
+    
+    for msg in test_messages:
+        print(f"\n📝 User: {msg}")
+        print("-" * 40)
+        
+        # Base model
+        base_response = client.chat.completions.create(
+            model=base_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": msg}
+            ]
+        )
+        print(f"🔵 Base ({base_model}):")
+        print(f"   {base_response.choices[0].message.content[:200]}...")
+        
+        # Fine-tuned model
+        ft_response = client.chat.completions.create(
+            model=fine_tuned_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": msg}
+            ]
+        )
+        print(f"🟢 Fine-tuned ({fine_tuned_model.split(':')[1]}):")
+        print(f"   {ft_response.choices[0].message.content[:200]}...")
+
+# Example usage (uncomment with your model)
+if __name__ == "__main__":
+    # compare_responses(
+    #     base_model="gpt-4o-mini",
+    #     fine_tuned_model="ft:gpt-4o-mini-2024-07-18:your-org::xxx",
+    #     system_prompt="You are a customer support agent for TechCo.",
+    #     test_messages=[
+    #         "My order is late",
+    #         "I hate this product",
+    #         "Can I get a discount?"
+    #     ]
+    # )
+    
+    print("To run comparison, uncomment the code with your fine-tuned model name")
+```
+
+### Task 6: Deployment Script (45 min)
+
+```python
+# deploy.py
+"""
+Simple deployment script for AI applications.
+"""
+import subprocess
+import sys
+import os
+
+def run_command(cmd: str, description: str = ""):
+    """Run a shell command."""
+    if description:
+        print(f"\n→ {description}")
+    
+    print(f"  $ {cmd}")
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        print(f"  ✗ Error: {result.stderr}")
+        return False
+    
+    if result.stdout.strip():
+        print(f"  {result.stdout[:200]}")
+    
+    return True
+
+def build_docker_image(tag: str = "ai-api:latest"):
+    """Build Docker image."""
+    return run_command(
+        f"docker build -t {tag} .",
+        "Building Docker image"
+    )
+
+def run_docker_local(tag: str = "ai-api:latest", port: int = 8000):
+    """Run Docker container locally."""
+    return run_command(
+        f"docker run -d -p {port}:8000 --env-file .env {tag}",
+        f"Running container on port {port}"
+    )
+
+def push_to_registry(tag: str, registry: str):
+    """Push image to container registry."""
+    full_tag = f"{registry}/{tag}"
+    
+    run_command(f"docker tag {tag} {full_tag}", "Tagging image")
+    return run_command(f"docker push {full_tag}", "Pushing to registry")
+
+def deploy_checklist():
+    """Print deployment checklist."""
+    
+    print("""
+╔══════════════════════════════════════════════════════════╗
+║               AI APPLICATION DEPLOYMENT CHECKLIST         ║
+╠══════════════════════════════════════════════════════════╣
+║                                                           ║
+║  PRE-DEPLOYMENT:                                          ║
+║  □ Environment variables configured                       ║
+║  □ API keys secured (not in code)                         ║
+║  □ Rate limiting configured                               ║
+║  □ Logging enabled                                        ║
+║  □ Health check endpoint working                          ║
+║                                                           ║
+║  SECURITY:                                                ║
+║  □ Input validation implemented                           ║
+║  □ Content moderation active                              ║
+║  □ CORS configured correctly                              ║
+║  □ Authentication required (if needed)                    ║
+║                                                           ║
+║  MONITORING:                                              ║
+║  □ Error tracking set up                                  ║
+║  □ Cost monitoring enabled                                ║
+║  □ Performance metrics configured                         ║
+║                                                           ║
+║  TESTING:                                                 ║
+║  □ Unit tests pass                                        ║
+║  □ Integration tests pass                                 ║
+║  □ Load tested                                            ║
+║                                                           ║
+╚══════════════════════════════════════════════════════════╝
+""")
+
+if __name__ == "__main__":
+    deploy_checklist()
+    
+    if len(sys.argv) > 1:
+        action = sys.argv[1]
+        
+        if action == "build":
+            build_docker_image()
+        elif action == "run":
+            run_docker_local()
+        elif action == "push":
+            if len(sys.argv) > 2:
+                push_to_registry("ai-api:latest", sys.argv[2])
+            else:
+                print("Usage: python deploy.py push <registry>")
+        else:
+            print(f"Unknown action: {action}")
+            print("Available: build, run, push")
+```
+
+### Task 7: Build a Chat Bot Integration (45 min)
+
+```python
+# chatbot_framework.py
+"""
+Framework for building AI chat bots that integrate with 
+Slack, Teams, or other platforms.
+
+This is a platform-agnostic core - you'd add platform adapters.
+"""
+from dataclasses import dataclass
+from typing import Callable, Optional, Dict, Any
+from abc import ABC, abstractmethod
+import json
+import re
+
+# ============ Core Bot Framework ============
+
+@dataclass
+class Message:
+    """Platform-agnostic message."""
+    user_id: str
+    channel_id: str
+    text: str
+    platform: str  # "slack", "teams", "discord"
+    raw: Dict[str, Any] = None  # Platform-specific data
+
+@dataclass
+class Response:
+    """Bot response."""
+    text: str
+    attachments: list = None
+    ephemeral: bool = False  # Only visible to sender
+
+class CommandHandler:
+    """Handler for slash commands."""
+    
+    def __init__(self, name: str, handler: Callable, description: str = ""):
+        self.name = name
+        self.handler = handler
+        self.description = description
+
+class AIBot:
+    """AI-powered chat bot framework."""
+    
+    def __init__(self, ai_service: Callable):
+        self.ai_service = ai_service
+        self.commands: Dict[str, CommandHandler] = {}
+        self.middleware: list = []
+        self.conversation_history: Dict[str, list] = {}
+    
+    def command(self, name: str, description: str = ""):
+        """Decorator to register a command."""
+        def decorator(func):
+            self.commands[name] = CommandHandler(name, func, description)
+            return func
+        return decorator
+    
+    def add_middleware(self, func: Callable):
+        """Add middleware to process messages."""
+        self.middleware.append(func)
+    
+    async def process_message(self, message: Message) -> Response:
+        """Process an incoming message."""
+        # Run middleware
+        for mw in self.middleware:
+            message = mw(message)
+            if message is None:  # Middleware blocked
+                return None
+        
+        # Check for commands
+        if message.text.startswith("/"):
+            return await self._handle_command(message)
+        
+        # Regular conversation
+        return await self._handle_conversation(message)
+    
+    async def _handle_command(self, message: Message) -> Response:
+        """Handle slash commands."""
+        parts = message.text.split(" ", 1)
+        cmd_name = parts[0][1:]  # Remove /
+        args = parts[1] if len(parts) > 1 else ""
+        
+        handler = self.commands.get(cmd_name)
+        if not handler:
+            return Response(
+                text=f"Unknown command: /{cmd_name}",
+                ephemeral=True
+            )
+        
+        return await handler.handler(message, args)
+    
+    async def _handle_conversation(self, message: Message) -> Response:
+        """Handle regular conversation with AI."""
+        # Get or create conversation history
+        history = self.conversation_history.get(message.channel_id, [])
+        
+        # Add user message
+        history.append({"role": "user", "content": message.text})
+        
+        # Keep last 10 messages
+        history = history[-10:]
+        
+        # Call AI service
+        response_text = await self.ai_service(history)
+        
+        # Add assistant response
+        history.append({"role": "assistant", "content": response_text})
+        self.conversation_history[message.channel_id] = history
+        
+        return Response(text=response_text)
+    
+    def clear_history(self, channel_id: str):
+        """Clear conversation history for a channel."""
+        self.conversation_history.pop(channel_id, None)
+
+# ============ Platform Adapters (Stubs) ============
+
+class PlatformAdapter(ABC):
+    """Base class for platform adapters."""
+    
+    @abstractmethod
+    def parse_message(self, raw: dict) -> Message:
+        pass
+    
+    @abstractmethod
+    def format_response(self, response: Response) -> dict:
+        pass
+
+class SlackAdapter(PlatformAdapter):
+    """Slack-specific adapter."""
+    
+    def parse_message(self, raw: dict) -> Message:
+        return Message(
+            user_id=raw.get("user", ""),
+            channel_id=raw.get("channel", ""),
+            text=raw.get("text", ""),
+            platform="slack",
+            raw=raw
+        )
+    
+    def format_response(self, response: Response) -> dict:
+        result = {"text": response.text}
+        if response.ephemeral:
+            result["response_type"] = "ephemeral"
+        if response.attachments:
+            result["attachments"] = response.attachments
+        return result
+
+class TeamsAdapter(PlatformAdapter):
+    """Microsoft Teams adapter."""
+    
+    def parse_message(self, raw: dict) -> Message:
+        return Message(
+            user_id=raw.get("from", {}).get("id", ""),
+            channel_id=raw.get("conversation", {}).get("id", ""),
+            text=raw.get("text", ""),
+            platform="teams",
+            raw=raw
+        )
+    
+    def format_response(self, response: Response) -> dict:
+        # Teams uses Adaptive Cards for rich formatting
+        return {
+            "type": "message",
+            "text": response.text
+        }
+
+# ============ Usage Example ============
+
+async def mock_ai_service(messages: list) -> str:
+    """Mock AI service for testing."""
+    last_message = messages[-1]["content"]
+    return f"AI response to: {last_message[:50]}..."
+
+# Create bot
+bot = AIBot(ai_service=mock_ai_service)
+
+# Register commands
+@bot.command("help", "Show available commands")
+async def help_command(message: Message, args: str) -> Response:
+    commands_list = "\n".join([
+        f"/{cmd.name} - {cmd.description}"
+        for cmd in bot.commands.values()
+    ])
+    return Response(text=f"Available commands:\n{commands_list}")
+
+@bot.command("clear", "Clear conversation history")
+async def clear_command(message: Message, args: str) -> Response:
+    bot.clear_history(message.channel_id)
+    return Response(text="Conversation history cleared!", ephemeral=True)
+
+@bot.command("ask", "Ask the AI a question")
+async def ask_command(message: Message, args: str) -> Response:
+    if not args:
+        return Response(text="Please provide a question: /ask <question>", ephemeral=True)
+    
+    history = [{"role": "user", "content": args}]
+    response = await mock_ai_service(history)
+    return Response(text=response)
+
+# Middleware example
+def logging_middleware(message: Message) -> Message:
+    print(f"[{message.platform}] {message.user_id}: {message.text}")
+    return message
+
+bot.add_middleware(logging_middleware)
 
 # Test
 if __name__ == "__main__":
-    client = ResilientAIClient(
-        requests_per_minute=60,
-        cache_ttl=300
-    )
+    import asyncio
     
-    print("Testing resilient client...")
-    
-    # Make some calls
-    messages = [
-        "Hello!",
-        "What is AI?",
-        "Hello!",  # Should be cached
-        "What is AI?",  # Should be cached
-        "Tell me about Python"
-    ]
-    
-    for msg in messages:
-        start = time.time()
-        try:
-            response = client.chat(msg)
-            elapsed = (time.time() - start) * 1000
-            print(f"✓ '{msg[:20]}...' ({elapsed:.0f}ms)")
-        except Exception as e:
-            print(f"✗ '{msg[:20]}...' - {e}")
-    
-    print(f"\nStats: {client.stats}")
-```
-
-### Task 7: Secrets & RBAC Implementation (45 min)
-
-```python
-# secrets_and_rbac.py
-import os
-from dataclasses import dataclass
-from enum import Enum
-from typing import Set, Optional
-from functools import wraps
-from datetime import datetime
-
-# ============ Secrets Management ============
-
-@dataclass
-class AppConfig:
-    """Application configuration from environment."""
-    openai_api_key: str
-    database_url: str
-    environment: str
-    log_level: str
-    
-    @classmethod
-    def from_env(cls) -> "AppConfig":
-        """Load config from environment variables."""
-        required = ["OPENAI_API_KEY"]
-        missing = [var for var in required if var not in os.environ]
-        if missing:
-            raise ValueError(f"Missing required env vars: {missing}")
+    async def test_bot():
+        print("=== Testing Bot Framework ===\n")
         
-        return cls(
-            openai_api_key=os.environ["OPENAI_API_KEY"],
-            database_url=os.environ.get("DATABASE_URL", "sqlite:///local.db"),
-            environment=os.environ.get("ENVIRONMENT", "development"),
-            log_level=os.environ.get("LOG_LEVEL", "INFO")
-        )
-    
-    def is_production(self) -> bool:
-        return self.environment == "production"
-
-class SecretManager:
-    """Abstract secret manager with multiple backends."""
-    
-    def __init__(self, backend: str = "env"):
-        self.backend = backend
-        self._cache: dict = {}
-    
-    def get_secret(self, name: str) -> Optional[str]:
-        """Get a secret by name."""
-        if name in self._cache:
-            return self._cache[name]
+        # Simulate messages
+        test_messages = [
+            Message("user1", "channel1", "Hello!", "slack"),
+            Message("user1", "channel1", "What is AI?", "slack"),
+            Message("user1", "channel1", "/help", "slack"),
+            Message("user1", "channel1", "/ask What is Python?", "slack"),
+            Message("user1", "channel1", "/clear", "slack"),
+        ]
         
-        if self.backend == "env":
-            value = os.environ.get(name)
-        elif self.backend == "keyvault":
-            # In production, use Azure Key Vault
-            value = self._get_from_keyvault(name)
-        else:
-            raise ValueError(f"Unknown backend: {self.backend}")
-        
-        if value:
-            self._cache[name] = value
-        return value
+        for msg in test_messages:
+            print(f"\n> {msg.text}")
+            response = await bot.process_message(msg)
+            if response:
+                print(f"< {response.text}")
     
-    def _get_from_keyvault(self, name: str) -> Optional[str]:
-        """Get secret from Azure Key Vault (stub)."""
-        # In real implementation:
-        # from azure.identity import DefaultAzureCredential
-        # from azure.keyvault.secrets import SecretClient
-        # credential = DefaultAzureCredential()
-        # client = SecretClient(vault_url=os.environ["KEYVAULT_URL"], credential=credential)
-        # return client.get_secret(name).value
-        print(f"  [KeyVault] Getting secret: {name}")
-        return os.environ.get(name)  # Fallback for demo
-
-# ============ RBAC Implementation ============
-
-class Role(Enum):
-    ADMIN = "admin"
-    DEVELOPER = "developer"
-    USER = "user"
-    AUDITOR = "auditor"
-
-class Permission(Enum):
-    QUERY = "query"
-    VIEW_LOGS = "view_logs"
-    MODIFY_PROMPTS = "modify_prompts"
-    MANAGE_USERS = "manage_users"
-    DELETE_DATA = "delete_data"
-    ACCESS_SENSITIVE = "access_sensitive"
-
-ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
-    Role.ADMIN: {p for p in Permission},  # All permissions
-    Role.DEVELOPER: {
-        Permission.QUERY, 
-        Permission.VIEW_LOGS, 
-        Permission.MODIFY_PROMPTS
-    },
-    Role.USER: {Permission.QUERY},
-    Role.AUDITOR: {Permission.VIEW_LOGS},
-}
-
-@dataclass
-class User:
-    id: str
-    email: str
-    role: Role
-    created_at: datetime = None
-    
-    def __post_init__(self):
-        if self.created_at is None:
-            self.created_at = datetime.now()
-    
-    def has_permission(self, permission: Permission) -> bool:
-        return permission in ROLE_PERMISSIONS.get(self.role, set())
-
-class RBACError(Exception):
-    """Raised when permission is denied."""
-    pass
-
-def require_permission(permission: Permission):
-    """Decorator to enforce permission checks."""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(user: User, *args, **kwargs):
-            if not user.has_permission(permission):
-                raise RBACError(
-                    f"Permission denied: {user.email} ({user.role.value}) "
-                    f"lacks {permission.value}"
-                )
-            print(f"  [RBAC] {user.email} authorized for {permission.value}")
-            return func(user, *args, **kwargs)
-        return wrapper
-    return decorator
-
-def audit_log(action: str):
-    """Decorator to log actions for audit."""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(user: User, *args, **kwargs):
-            result = func(user, *args, **kwargs)
-            print(f"  [AUDIT] {datetime.now().isoformat()} | {user.email} | {action}")
-            return result
-        return wrapper
-    return decorator
-
-# ============ AI Service with RBAC ============
-
-class SecureAIService:
-    """AI service with authentication and authorization."""
-    
-    def __init__(self, secret_manager: SecretManager):
-        self.secrets = secret_manager
-        self._api_key = None
-    
-    def _get_api_key(self) -> str:
-        if not self._api_key:
-            self._api_key = self.secrets.get_secret("OPENAI_API_KEY")
-        return self._api_key
-    
-    @require_permission(Permission.QUERY)
-    @audit_log("ai_query")
-    def query(self, user: User, prompt: str) -> str:
-        """Run an AI query (requires QUERY permission)."""
-        # In real app, use self._get_api_key() to make API call
-        return f"Response to: {prompt[:30]}..."
-    
-    @require_permission(Permission.MODIFY_PROMPTS)
-    @audit_log("modify_prompt")
-    def update_system_prompt(self, user: User, prompt_id: str, content: str) -> bool:
-        """Update a system prompt (requires MODIFY_PROMPTS permission)."""
-        print(f"  Updated prompt {prompt_id}")
-        return True
-    
-    @require_permission(Permission.VIEW_LOGS)
-    def get_logs(self, user: User, limit: int = 100) -> list:
-        """Get audit logs (requires VIEW_LOGS permission)."""
-        return [f"Log entry {i}" for i in range(limit)]
-    
-    @require_permission(Permission.DELETE_DATA)
-    @audit_log("delete_data")
-    def delete_user_data(self, user: User, target_user_id: str) -> bool:
-        """Delete user data (requires DELETE_DATA permission - admin only)."""
-        print(f"  Deleted data for user {target_user_id}")
-        return True
-
-# ============ Test ============
-
-if __name__ == "__main__":
-    # Set up
-    os.environ["OPENAI_API_KEY"] = "sk-test-key"
-    secrets = SecretManager(backend="env")
-    service = SecureAIService(secrets)
-    
-    # Create test users
-    admin = User(id="1", email="admin@company.com", role=Role.ADMIN)
-    dev = User(id="2", email="dev@company.com", role=Role.DEVELOPER)
-    user = User(id="3", email="user@company.com", role=Role.USER)
-    auditor = User(id="4", email="auditor@company.com", role=Role.AUDITOR)
-    
-    print("=== Admin (all permissions) ===")
-    print(service.query(admin, "What is the meaning of life?"))
-    service.update_system_prompt(admin, "sys-001", "You are helpful...")
-    
-    print("\n=== Developer (query + modify) ===")
-    print(service.query(dev, "Explain quantum computing"))
-    service.update_system_prompt(dev, "sys-002", "New prompt...")
-    
-    print("\n=== User (query only) ===")
-    print(service.query(user, "Hello!"))
-    
-    print("\n=== User trying to modify (should fail) ===")
-    try:
-        service.update_system_prompt(user, "sys-003", "Hacked!")
-    except RBACError as e:
-        print(f"  ✗ {e}")
-    
-    print("\n=== Auditor (view logs only) ===")
-    logs = service.get_logs(auditor, limit=3)
-    print(f"  Got {len(logs)} log entries")
-    
-    print("\n=== Auditor trying to query (should fail) ===")
-    try:
-        service.query(auditor, "Hello!")
-    except RBACError as e:
-        print(f"  ✗ {e}")
+    asyncio.run(test_bot())
 ```
-
----
-
-## 🎯 Optional Challenges
-
-*Production skills separate demos from real systems. Practice here.*
-
-### Challenge 1: Cost Tracker
-Build a real-time cost tracking system:
-```python
-class CostTracker:
-    def __init__(self, budget_limit: float):
-        self.total_cost = 0
-        self.budget_limit = budget_limit
-    
-    def track(self, response):
-        # Calculate cost from token usage
-        # Alert if approaching budget
-        # Block if over budget
-```
-
-### Challenge 2: Graceful Degradation
-Build a system that works (limited) when the API is down:
-- Return cached responses for common queries
-- Show "AI temporarily unavailable" message
-- Queue requests for later processing
-- Send notification to admin
-
-### Challenge 3: A/B Testing Framework
-Implement A/B testing for prompts:
-```python
-class PromptABTest:
-    def __init__(self, prompt_a, prompt_b, split=0.5):
-        pass
-    
-    def get_prompt(self, user_id):
-        # Consistently assign users to A or B
-        pass
-    
-    def record_result(self, user_id, metric):
-        # Track which prompt performs better
-        pass
-```
-
-### Challenge 4: Auto-Scaling Simulation
-Simulate load and test your rate limiting:
-```python
-import asyncio
-import random
-
-async def simulate_load(requests_per_second, duration_seconds):
-    # Send requests at specified rate
-    # Measure: latency, success rate, queue depth
-    pass
-
-# Test: What happens at 10/s? 100/s? 1000/s?
-```
-
-### Challenge 5: Incident Response Playbook
-Create an automated incident response:
-1. Detect: Error rate > 10%
-2. Alert: Send Slack/email notification
-3. Mitigate: Switch to backup provider automatically
-4. Log: Record incident details
-5. Report: Generate post-incident summary
 
 ---
 
 ## Knowledge Checklist
 
-- [ ] I can implement rate limiting
-- [ ] I can cache AI responses effectively
-- [ ] I understand exponential backoff retries
-- [ ] I can implement a circuit breaker
-- [ ] I can set up provider failover
-- [ ] I built a production-ready resilient client
-- [ ] I understand secrets management patterns
-- [ ] I can implement RBAC for AI services
+- [ ] I can containerize an AI application with Docker
+- [ ] I understand deployment options and trade-offs
+- [ ] I know when fine-tuning is appropriate
+- [ ] I can prepare fine-tuning datasets
+- [ ] I understand the fine-tuning process
+- [ ] I can deploy and test AI applications
+- [ ] I understand chat bot integration patterns (Slack/Teams)
+- [ ] I know about API Gateway options and patterns
 
 ---
 
 ## Deliverables
 
-1. `rate_limiter.py` — Token bucket rate limiting
-2. `caching.py` — Response caching with TTL
-3. `retries.py` — Exponential backoff retries
-4. `circuit_breaker.py` — Circuit breaker pattern
-5. `failover.py` — Multi-provider failover
-6. `resilient_client.py` — Combined resilient client
-7. `secrets_and_rbac.py` — Secrets management + RBAC
+1. `main.py` — FastAPI AI application
+2. `Dockerfile` — Container configuration
+3. `docker-compose.yml` — Multi-container setup
+4. `prepare_finetuning_data.py` — Data preparation
+5. `fine_tune.py` — Fine-tuning workflow
+6. `deploy.py` — Deployment helper script
+7. `chatbot_framework.py` — Chat bot integration
 
 ---
 
 ## What's Next?
 
-Next week: **Deployment & Fine-Tuning** — deploying your AI apps and when/how to fine-tune!
+Next week: **Capstone Project & Interview Prep** — put it all together and prepare for your AI career!
 
 ---
 
 ## Resources
 
-- [OpenAI Rate Limits](https://platform.openai.com/docs/guides/rate-limits)
-- [Circuit Breaker Pattern](https://martinfowler.com/bliki/CircuitBreaker.html)
-- [Resilience Patterns](https://docs.microsoft.com/en-us/azure/architecture/patterns/category/resiliency)
+- [Docker Getting Started](https://docs.docker.com/get-started/)
+- [OpenAI Fine-Tuning Guide](https://platform.openai.com/docs/guides/fine-tuning)
+- [Slack Bolt Python SDK](https://slack.dev/bolt-python/concepts)
+- [Microsoft Bot Framework](https://docs.microsoft.com/en-us/azure/bot-service/)
+- [FastAPI Deployment](https://fastapi.tiangolo.com/deployment/)

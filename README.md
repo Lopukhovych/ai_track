@@ -9,8 +9,8 @@ No prior AI/ML experience required. You'll build one project that evolves from a
 ## Your Journey
 
 ```
-Week 1-4:   "I can talk to AI and it answers from my documents"
-Week 5-8:   "My AI system is reliable and I can measure its quality"
+Week 1:     "I can talk to AI, build a chatbot, and get structured output"
+Week 4-8:   "My AI answers from my documents and I can measure its quality"
 Week 9-12:  "My AI can take actions and work autonomously"
 Week 13-16: "My AI system is production-ready and I can get hired"
 ```
@@ -23,10 +23,8 @@ Week 13-16: "My AI system is production-ready and I can get hired"
 
 | Week | Topic | What You'll Build |
 |------|-------|-------------------|
-| [Week 1](agenda/week_01.md) | What is AI? First API Call | Your first conversation with GPT |
-| [Week 2](agenda/week_02.md) | Build a Chatbot | Chatbot with conversation memory |
-| [Week 3](agenda/week_03.md) | Better Prompts & Structure | Chatbot that returns JSON reliably |
-| [Week 4](agenda/week_04.md) | Connect to Your Data | Chatbot that answers from your documents |
+| [Week 1](agenda/week_01.md) | API Basics, Chatbot & Structured Output | First API call, memory chatbot, JSON output |
+| [Week 4](agenda/week_02.md) | Connect to Your Data | Chatbot that answers from your documents |
 
 **Milestone:** Personal Q&A chatbot over your own documents
 
@@ -34,10 +32,10 @@ Week 13-16: "My AI system is production-ready and I can get hired"
 
 | Week | Topic | What You'll Build |
 |------|-------|-------------------|
-| [Week 5](agenda/week_05.md) | Embeddings Deep Dive | Full document ingestion pipeline |
-| [Week 6](agenda/week_06.md) | RAG Architecture | Production RAG with citations |
-| [Week 7](agenda/week_07.md) | Evaluations & Metrics | Test suite proving your system works |
-| [Week 8](agenda/week_08.md) | Security & Guardrails | Protected against attacks |
+| [Week 5](agenda/week_03.md) | Embeddings Deep Dive | Full document ingestion pipeline |
+| [Week 6](agenda/week_04.md) | RAG Architecture | Production RAG with citations |
+| [Week 7](agenda/week_05.md) | Evaluations & Metrics | Test suite proving your system works |
+| [Week 8](agenda/week_06.md) | Security & Guardrails | Protected against attacks |
 
 **Milestone:** Portfolio Project #1 — Production RAG Q&A System
 
@@ -45,10 +43,10 @@ Week 13-16: "My AI system is production-ready and I can get hired"
 
 | Week | Topic | What You'll Build |
 |------|-------|-------------------|
-| [Week 9](agenda/week_09.md) | Tool Calling & Actions | AI that can search, calculate, act |
-| [Week 10](agenda/week_10.md) | Agent Fundamentals | Multi-step reasoning agent |
-| [Week 11](agenda/week_11.md) | Agent Frameworks + Multi-Modal | LangGraph, CrewAI + Vision/Audio (optional) |
-| [Week 12](agenda/week_12.md) | Data Engineering for AI | SQL, pipelines, data quality |
+| [Week 9](agenda/week_07.md) | Tool Calling & Actions | AI that can search, calculate, act |
+| [Week 10](agenda/week_08.md) | Agent Fundamentals | Multi-step reasoning agent |
+| [Week 11](agenda/week_09.md) | Agent Frameworks + Multi-Modal | LangGraph, CrewAI + Vision/Audio (optional) |
+| [Week 12](agenda/week_11.md) | Data Engineering for AI | SQL, pipelines, data quality |
 
 **Milestone:** Portfolio Project #2 — AI Agent System
 
@@ -56,10 +54,10 @@ Week 13-16: "My AI system is production-ready and I can get hired"
 
 | Week | Topic | What You'll Build |
 |------|-------|-------------------|
-| [Week 13](agenda/week_13.md) | MCP & Observability | Tracing and monitoring |
-| [Week 14](agenda/week_14.md) | Production Hardening | Cost control, caching, reliability |
-| [Week 15](agenda/week_15.md) | Deployment & Fine-Tuning | Deploy to cloud, optional fine-tuning |
-| [Week 16](agenda/week_16.md) | Capstone & Interview Prep | Final project + interview readiness |
+| [Week 13](agenda/week_12.md) | MCP & Observability | Tracing and monitoring |
+| [Week 14](agenda/week_13.md) | Production Hardening | Cost control, caching, reliability |
+| [Week 15](agenda/week_14.md) | Deployment & Fine-Tuning | Deploy to cloud, optional fine-tuning |
+| [Week 16](agenda/week_15.md) | Capstone & Interview Prep | Final project + interview readiness |
 
 **Milestone:** Portfolio Project #3 — Production Capstone + Interview Ready
 
@@ -70,8 +68,7 @@ Week 13-16: "My AI system is production-ready and I can get hired"
 Throughout this course, you build **one evolving project**:
 
 ```
-Week 1-2:   Simple chatbot (terminal)
-Week 3:     + Structured responses (JSON)
+Week 1:     Simple chatbot with memory + structured responses (JSON)
 Week 4:     + Document Q&A (basic RAG)
 Week 5-6:   + Full RAG pipeline with citations
 Week 7:     + Quality metrics and tests
@@ -150,7 +147,8 @@ Each week has a companion **Jupyter notebook** in the [labs/](labs/) folder:
 | Week | Lab |
 |------|-----|
 | 0 | [Getting Started](labs/week_00_getting_started.ipynb) — Setup verification |
-| 1-16 | `week_XX_*.ipynb` — Exercises for each week |
+| 1 | [week_01_first_api_call.ipynb](labs/week_01_first_api_call.ipynb) — API basics, chatbot, structured output |
+| 4-16 | `week_XX_*.ipynb` — Exercises for each week |
 
 ### How Labs Work
 

@@ -1,706 +1,805 @@
-# Week 7: Evaluations & Quality Metrics
+# Week 7: Agent Fundamentals
 
-**Month:** 2 (Quality & Safety) | **Duration:** 6-8 hours
+**Month:** 3 (Intelligence) | **Duration:** 6-8 hours
 
 ---
 
 ## Overview
 
-Your RAG system generates answers, but **how do you know if they're any good?** This week you'll learn to measure AI quality systematically — a critical skill for production AI systems.
+This week you'll create **agents** — AI systems that can plan, reason, and execute multi-step tasks autonomously. This is where AI gets truly powerful.
 
 ---
 
 ## Learning Objectives
 
 By the end of this week, you will:
-- Understand why evaluation matters
-- Build test datasets for your AI
-- Implement automatic quality metrics
-- Use LLM-as-a-judge evaluation
-- Set up regression testing for AI
+- Understand the difference between tools and agents
+- Build a ReAct (Reason + Act) agent
+- Implement agent loops with planning
+- Handle errors and retries
+- Build an autonomous task executor
+
+---
+
+## Model Options
+
+| Feature | OpenAI (Paid) | Ollama (Free/Local) |
+|---------|--------------|---------------------|
+| ReAct agent (reasoning) | `gpt-4o-mini` | `deepseek-r1:7b` (native chain-of-thought) |
+| Faster / lighter agent | `gpt-4o-mini` | `llama3.1:8b` |
+
+**Quick start with Ollama:**
+```bash
+ollama pull deepseek-r1:7b   # ~4.7GB — built-in <think> reasoning traces
+ollama pull llama3.1:8b      # lighter fallback
+```
+
+```python
+from scripts.model_config import get_client, REASON_MODEL
+# deepseek-r1 outputs its reasoning in <think>...</think> blocks — great for debugging agents
+```
+
+> `deepseek-r1:7b` is ideal for ReAct loops: its chain-of-thought reasoning is visible and helps you understand why the agent took each step.
 
 ---
 
 ## Theory (2 hours)
 
-### 1. Why Evaluate AI? (30 min)
+### 1. Tools vs Agents (30 min)
 
-**The problem:** AI outputs are non-deterministic. The same question can give different answers.
+| Tool Calling | Agent |
+|--------------|-------|
+| One question → one action | One goal → many actions |
+| You manage the loop | Agent manages itself |
+| No memory between calls | Remembers and plans |
+| Reactive | Proactive |
 
-**Without evaluation:**
-- "It seems to work" → ships broken AI
-- Can't measure improvements
-- No way to catch regressions
-
-**With evaluation:**
-- Quantified quality scores
-- Know when changes help/hurt
-- Confident deployments
-
-### 2. Evaluation Types (30 min)
-
-| Type | What It Measures | How |
-|------|------------------|-----|
-| **Retrieval** | Did we find the right documents? | Precision, Recall |
-| **Generation** | Is the answer good? | Faithfulness, Relevance |
-| **End-to-End** | Does the whole system work? | Answer correctness |
-
-### 3. Key Metrics (30 min)
-
-**Retrieval Metrics:**
+**Tool calling:**
 ```
-Precision = relevant retrieved / total retrieved
-Recall = relevant retrieved / total relevant
-
-Example: Query finds 5 docs, 3 are relevant, 2 relevant docs exist
-- Precision = 3/5 = 60%
-- Recall = 3/2... wait, can't find more than exist!
+User: "What's the weather in Paris?"
+AI: get_weather("Paris") → "It's 18°C"
+Done.
 ```
 
-**Generation Metrics:**
-- **Faithfulness**: Does the answer match the context? (no hallucination)
-- **Relevance**: Does the answer address the question?
-- **Completeness**: Did we answer the full question?
-
-### 4. LLM-as-a-Judge (30 min)
-
-**Use one LLM to evaluate another:**
-```python
-prompt = f"""
-Rate this answer on a scale of 1-5:
-
-Question: {question}
-Context: {context}
-Answer: {answer}
-
-Criteria:
-- Factual accuracy (matches context)
-- Completeness (answers the question fully)
-- Relevance (no off-topic information)
-
-Return JSON: {{"score": 1-5, "reason": "..."}}
-"""
+**Agent:**
+```
+User: "Plan a weekend trip to Paris"
+Agent:
+  1. First, I'll check the weather → get_weather("Paris")
+  2. Now I'll search for hotels → search_hotels("Paris")
+  3. Let me find activities → search_attractions("Paris")
+  4. I'll create an itinerary → create_plan(...)
+Done!
 ```
 
-**Pros:** Scalable, nuanced evaluation
-**Cons:** Can be biased, costs money
+### 2. The ReAct Pattern (30 min)
 
-### 5. Ground-Truth Curation (30 min)
+**ReAct = Reasoning + Acting**
 
-**Golden datasets** are your source of truth for evaluation.
+```
+GOAL: Book the cheapest flight to London
 
-**Creating ground-truth data:**
-| Method | Pros | Cons |
-|--------|------|------|
-| **Expert labeling** | High quality | Expensive, slow |
-| **Crowdsourcing** | Scalable | Quality varies |
-| **LLM-assisted** | Fast | Needs verification |
-| **Production sampling** | Realistic | Delayed feedback |
+THOUGHT: I need to search for available flights first
+ACTION: search_flights(destination="London", date="2024-03-15")
+OBSERVATION: [Flight results: $450, $380, $520]
 
-**Best practices:**
-1. **Diverse questions** — Cover edge cases, not just happy paths
-2. **Multiple correct answers** — "20 days" vs "Twenty days" both valid
-3. **Annotator guidelines** — Clear criteria for labelers
-4. **Inter-rater agreement** — Multiple people label same items
-5. **Regular updates** — Refresh as product changes
+THOUGHT: The $380 flight is cheapest. I should book it.
+ACTION: book_flight(flight_id="FL380")
+OBSERVATION: Booking confirmed #12345
 
-```python
-# Labeling workflow example
-golden_test = {
-    "question": "How many vacation days?",
-    "acceptable_answers": [
-        "20 days",
-        "Twenty days",
-        "20 PTO days per year"
-    ],
-    "required_docs": ["vacation_policy.txt"],
-    "difficulty": "easy",
-    "labeled_by": ["expert_1", "expert_2"],
-    "created_date": "2025-01-15"
-}
+THOUGHT: I've booked the flight. Task complete.
+ANSWER: I booked flight #12345 for $380 to London.
 ```
 
-### 6. CI/CD Integration for Prompt Testing (30 min)
+**Key components:**
+- **Thought**: Planning what to do next
+- **Action**: Executing a tool
+- **Observation**: Seeing the result
+- **Loop**: Repeat until goal achieved
 
-**Run evaluations automatically on every change:**
+### 3. Agent Architecture (30 min)
 
-```yaml
-# .github/workflows/eval.yml
-name: AI Evaluation
-
-on:
-  push:
-    paths:
-      - 'prompts/**'
-      - 'src/rag/**'
-
-jobs:
-  evaluate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      
-      - name: Run evaluations
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: python run_evaluation.py
-      
-      - name: Check for regression
-        run: python check_regression.py --threshold 0.80
+```
+┌────────────────────────────────────────────────┐
+│                     AGENT                      │
+├────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────┐ │
+│  │               MEMORY                      │ │
+│  │  - Conversation history                   │ │
+│  │  - Task state                             │ │
+│  │  - Previous observations                  │ │
+│  └──────────────────────────────────────────┘ │
+│                      ↓                         │
+│  ┌──────────────────────────────────────────┐ │
+│  │            REASONING (LLM)                │ │
+│  │  - What's the current state?              │ │
+│  │  - What should I do next?                 │ │
+│  │  - Am I done?                             │ │
+│  └──────────────────────────────────────────┘ │
+│                      ↓                         │
+│  ┌──────────────────────────────────────────┐ │
+│  │               TOOLS                        │ │
+│  │  search() │ calculate() │ write()         │ │
+│  └──────────────────────────────────────────┘ │
+└────────────────────────────────────────────────┘
 ```
 
-**Key metrics to gate deployments:**
-- Overall score > 0.80 (or your threshold)
-- No individual metric below 0.60
-- No regression > 5% from baseline
+### 4. Common Agent Patterns (30 min)
+
+| Pattern | Use Case |
+|---------|----------|
+| **ReAct** | General reasoning + action |
+| **Plan-and-Execute** | Complex multi-step tasks |
+| **Self-Reflection** | Improve answers iteratively |
+| **Multi-Agent** | Specialized collaboration |
 
 ---
 
 ## Hands-On Practice (4-6 hours)
 
-### Task 1: Create a Test Dataset (45 min)
+### Task 1: Simple ReAct Agent (60 min)
 
 ```python
-# test_dataset.py
-import json
-
-# Create test questions with expected answers
-test_cases = [
-    {
-        "id": 1,
-        "question": "How many vacation days do employees get after 2 years?",
-        "expected_answer": "20 days",
-        "relevant_doc": "vacation_policy.txt"
-    },
-    {
-        "id": 2,
-        "question": "Can I work from home on Wednesday?",
-        "expected_answer": "No, Wednesday is a required office day",
-        "relevant_doc": "remote_work.txt"
-    },
-    {
-        "id": 3,
-        "question": "What's the 401k match?",
-        "expected_answer": "4% company match",
-        "relevant_doc": "benefits.txt"
-    },
-    {
-        "id": 4,
-        "question": "How much is the home office equipment allowance?",
-        "expected_answer": "$500",
-        "relevant_doc": "remote_work.txt"
-    },
-    {
-        "id": 5,
-        "question": "When should I request vacation?",
-        "expected_answer": "At least 2 weeks in advance",
-        "relevant_doc": "vacation_policy.txt"
-    }
-]
-
-# Save
-with open("test_data.json", "w") as f:
-    json.dump(test_cases, f, indent=2)
-
-print(f"Created {len(test_cases)} test cases")
-```
-
-### Task 2: Simple Correctness Check (45 min)
-
-```python
-# simple_eval.py
+# react_agent.py
 from openai import OpenAI
 from dotenv import load_dotenv
-from pydantic import BaseModel
 import json
+import re
 
 load_dotenv()
 client = OpenAI()
 
-class CorrectnessScore(BaseModel):
-    score: int  # 1-5
-    reason: str
-    matches_expected: bool
+# Tools
+def search_web(query: str) -> str:
+    """Mock web search."""
+    return f"Search results for '{query}': Found relevant information about {query}."
 
-def check_correctness(question: str, answer: str, expected: str) -> CorrectnessScore:
-    """Check if answer matches expected answer."""
-    
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You evaluate AI answers."},
-            {"role": "user", "content": f"""
-Compare the answer to the expected answer.
+def calculate(expression: str) -> str:
+    """Calculate math expression."""
+    try:
+        return str(eval(expression))
+    except:
+        return "Error in calculation"
+
+def get_weather(city: str) -> str:
+    """Mock weather."""
+    return f"Weather in {city}: 20°C, partly cloudy"
+
+tools = {
+    "search_web": search_web,
+    "calculate": calculate,
+    "get_weather": get_weather
+}
+
+REACT_PROMPT = """You are a helpful assistant that uses tools to answer questions.
+
+Available tools:
+- search_web(query): Search the web for information
+- calculate(expression): Do math calculations
+- get_weather(city): Get weather for a city
+
+Always use this format:
+THOUGHT: [your reasoning about what to do]
+ACTION: tool_name(arguments)
+
+When you have enough information:
+THOUGHT: [summary of what you learned]
+ANSWER: [your final answer]
+
+Begin!
 
 Question: {question}
-Expected Answer: {expected}
-Actual Answer: {answer}
+"""
 
-Return JSON:
-{{
-    "score": 1-5 (1=completely wrong, 5=perfect match),
-    "reason": "brief explanation",
-    "matches_expected": true/false
-}}"""}
-        ],
-        response_format={"type": "json_object"}
-    )
-    
-    data = json.loads(response.choices[0].message.content)
-    return CorrectnessScore(**data)
+def parse_response(text: str) -> tuple:
+    """Parse agent response into thought, action, or answer."""
 
-# Test
-if __name__ == "__main__":
-    result = check_correctness(
-        question="How many vacation days after 2 years?",
-        answer="Employees receive 20 days of paid time off after working for 2 years.",
-        expected="20 days"
-    )
-    
-    print(f"Score: {result.score}/5")
-    print(f"Matches: {result.matches_expected}")
-    print(f"Reason: {result.reason}")
-```
+    # Check for answer
+    if "ANSWER:" in text:
+        thought = re.search(r"THOUGHT:(.*?)(?:ANSWER:|$)", text, re.DOTALL)
+        answer = re.search(r"ANSWER:(.*?)$", text, re.DOTALL)
+        return "answer", {
+            "thought": thought.group(1).strip() if thought else "",
+            "answer": answer.group(1).strip() if answer else text
+        }
 
-### Task 3: Faithfulness Evaluation (60 min)
+    # Check for action
+    if "ACTION:" in text:
+        thought = re.search(r"THOUGHT:(.*?)ACTION:", text, re.DOTALL)
+        action = re.search(r"ACTION:\s*(\w+)\((.*?)\)", text)
 
-```python
-# faithfulness_eval.py
-from openai import OpenAI
-from dotenv import load_dotenv
-from pydantic import BaseModel
-from typing import List
-import json
+        if action:
+            return "action", {
+                "thought": thought.group(1).strip() if thought else "",
+                "tool": action.group(1),
+                "args": action.group(2).strip('"\'')
+            }
 
-load_dotenv()
-client = OpenAI()
+    return "unknown", {"text": text}
 
-class FaithfulnessResult(BaseModel):
-    score: float  # 0-1
-    claims: List[str]
-    supported_claims: List[str]
-    unsupported_claims: List[str]
+def run_agent(question: str, max_steps: int = 5) -> str:
+    """Run the ReAct agent."""
 
-def evaluate_faithfulness(context: str, answer: str) -> FaithfulnessResult:
-    """Check if all claims in the answer are supported by context."""
-    
-    # Step 1: Extract claims from answer
-    claims_response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "Extract factual claims from text."},
-            {"role": "user", "content": f"""
-Extract all factual claims from this answer:
+    prompt = REACT_PROMPT.format(question=question)
+    messages = [{"role": "user", "content": prompt}]
 
-"{answer}"
+    for step in range(max_steps):
+        print(f"\n--- Step {step + 1} ---")
 
-Return JSON: {{"claims": ["claim 1", "claim 2", ...]}}"""}
-        ],
-        response_format={"type": "json_object"}
-    )
-    
-    claims_data = json.loads(claims_response.choices[0].message.content)
-    claims = claims_data.get("claims", [])
-    
-    if not claims:
-        return FaithfulnessResult(
-            score=1.0, claims=[], supported_claims=[], unsupported_claims=[]
-        )
-    
-    # Step 2: Check each claim against context
-    supported = []
-    unsupported = []
-    
-    for claim in claims:
-        verify_response = client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "user", "content": f"""
-Is this claim supported by the context?
-
-Context: {context}
-
-Claim: {claim}
-
-Return JSON: {{"supported": true/false}}"""}
-            ],
-            response_format={"type": "json_object"}
+            messages=messages,
+            temperature=0
         )
-        
-        verify_data = json.loads(verify_response.choices[0].message.content)
-        
-        if verify_data.get("supported"):
-            supported.append(claim)
+
+        text = response.choices[0].message.content
+        print(text)
+
+        result_type, data = parse_response(text)
+
+        if result_type == "answer":
+            return data["answer"]
+
+        if result_type == "action":
+            # Execute tool
+            tool_name = data["tool"]
+            tool_args = data["args"]
+
+            if tool_name in tools:
+                observation = tools[tool_name](tool_args)
+            else:
+                observation = f"Unknown tool: {tool_name}"
+
+            print(f"OBSERVATION: {observation}")
+
+            # Add to messages
+            messages.append({"role": "assistant", "content": text})
+            messages.append({"role": "user", "content": f"OBSERVATION: {observation}"})
         else:
-            unsupported.append(claim)
-    
-    score = len(supported) / len(claims) if claims else 1.0
-    
-    return FaithfulnessResult(
-        score=score,
-        claims=claims,
-        supported_claims=supported,
-        unsupported_claims=unsupported
-    )
+            messages.append({"role": "assistant", "content": text})
+            messages.append({"role": "user", "content": "Continue reasoning. Use THOUGHT/ACTION or ANSWER format."})
+
+    return "Max steps reached without answer"
 
 # Test
 if __name__ == "__main__":
-    context = """
-    Employees receive 20 days of paid time off after 2 years of employment.
-    Vacation must be requested 2 weeks in advance through the HR portal.
-    """
-    
-    # Good answer (faithful)
-    good_answer = "After 2 years, you get 20 vacation days. Request them 2 weeks ahead."
-    
-    # Bad answer (has hallucination)
-    bad_answer = "You get 20 vacation days, and you can also carry over up to 30 days."
-    
-    print("=== Good Answer ===")
-    result = evaluate_faithfulness(context, good_answer)
-    print(f"Score: {result.score:.2f}")
-    print(f"Supported: {result.supported_claims}")
-    print(f"Unsupported: {result.unsupported_claims}")
-    
-    print("\n=== Bad Answer ===")
-    result = evaluate_faithfulness(context, bad_answer)
-    print(f"Score: {result.score:.2f}")
-    print(f"Supported: {result.supported_claims}")
-    print(f"Unsupported: {result.unsupported_claims}")
+    questions = [
+        "What is 25 * 17?",
+        "What's the weather like in Tokyo?",
+        "Calculate 15% of 200 and tell me if it's more than 25"
+    ]
+
+    for q in questions:
+        print(f"\n{'='*50}")
+        print(f"QUESTION: {q}")
+        print("="*50)
+        answer = run_agent(q)
+        print(f"\n✅ FINAL: {answer}")
 ```
 
-### Task 4: RAG Evaluation Pipeline (60 min)
+### Task 2: Agent with Memory (45 min)
 
 ```python
-# rag_evaluator.py
+# memory_agent.py
 from openai import OpenAI
 from dotenv import load_dotenv
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Dict
 import json
 
 load_dotenv()
 client = OpenAI()
 
 @dataclass
-class EvalResult:
-    question: str
-    answer: str
-    retrieval_score: float  # Did we find right docs?
-    faithfulness_score: float  # Answer matches context?
-    correctness_score: float  # Answer is correct?
-    overall_score: float
+class AgentMemory:
+    """Agent's working memory."""
+    goal: str = ""
+    steps_taken: List[Dict] = field(default_factory=list)
+    observations: List[str] = field(default_factory=list)
+    current_plan: List[str] = field(default_factory=list)
 
-def evaluate_rag_response(
-    question: str,
-    answer: str,
-    context: str,
-    expected_answer: str,
-    expected_doc: str,
-    retrieved_docs: List[str]
-) -> EvalResult:
-    """Comprehensive RAG evaluation."""
-    
-    # 1. Retrieval score: Did we find the expected document?
-    retrieval_score = 1.0 if expected_doc in retrieved_docs else 0.0
-    
-    # 2. Faithfulness: Is answer grounded in context?
-    faith_response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "user", "content": f"""
-Score how well the answer is supported by the context (0-1):
+    def add_step(self, thought: str, action: str, result: str):
+        self.steps_taken.append({
+            "thought": thought,
+            "action": action,
+            "result": result
+        })
+        self.observations.append(result)
 
-Context: {context}
-Answer: {answer}
+    def summary(self) -> str:
+        return f"""
+GOAL: {self.goal}
 
-Return JSON: {{"score": 0.0-1.0, "reason": "..."}}"""}
-        ],
-        response_format={"type": "json_object"}
-    )
-    faithfulness_score = json.loads(faith_response.choices[0].message.content)["score"]
-    
-    # 3. Correctness: Does answer match expected?
-    correct_response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "user", "content": f"""
-Score how well the answer matches the expected answer (0-1):
+COMPLETED STEPS:
+{chr(10).join([f"- {s['action']}: {s['result'][:100]}" for s in self.steps_taken])}
 
-Question: {question}
-Expected: {expected_answer}
-Actual: {answer}
+OBSERVATIONS SO FAR:
+{chr(10).join(self.observations[-3:])}
+"""
 
-Return JSON: {{"score": 0.0-1.0}}"""}
-        ],
-        response_format={"type": "json_object"}
-    )
-    correctness_score = json.loads(correct_response.choices[0].message.content)["score"]
-    
-    # Overall score (weighted average)
-    overall = (retrieval_score * 0.3 + faithfulness_score * 0.4 + correctness_score * 0.3)
-    
-    return EvalResult(
-        question=question,
-        answer=answer,
-        retrieval_score=retrieval_score,
-        faithfulness_score=faithfulness_score,
-        correctness_score=correctness_score,
-        overall_score=overall
-    )
+class MemoryAgent:
+    def __init__(self):
+        self.client = OpenAI()
+        self.memory = AgentMemory()
+        self.tools = {
+            "search": lambda q: f"Found info about: {q}",
+            "calculate": lambda e: str(eval(e)),
+            "note": lambda n: f"Noted: {n}"
+        }
+
+    def run(self, goal: str, max_steps: int = 5) -> str:
+        self.memory.goal = goal
+
+        for step in range(max_steps):
+            # Build prompt with memory
+            prompt = f"""
+{self.memory.summary()}
+
+Available tools: search(query), calculate(expr), note(text)
+
+What should you do next to achieve the goal?
+Respond with JSON: {{"thought": "...", "action": "tool(arg)", "done": false}}
+Or if complete: {{"thought": "...", "answer": "...", "done": true}}
+"""
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+
+            data = json.loads(response.choices[0].message.content)
+            print(f"Step {step + 1}: {data}")
+
+            if data.get("done"):
+                return data.get("answer", "Completed")
+
+            # Execute action
+            action = data.get("action", "")
+            import re
+            match = re.match(r"(\w+)\((.*?)\)", action)
+
+            if match:
+                tool, arg = match.groups()
+                result = self.tools.get(tool, lambda x: "Unknown tool")(arg.strip('"\''))
+                self.memory.add_step(data.get("thought", ""), action, result)
+            else:
+                self.memory.add_step(data.get("thought", ""), "none", "No action taken")
+
+        return "Goal not completed in max steps"
 
 # Test
 if __name__ == "__main__":
-    result = evaluate_rag_response(
-        question="How many vacation days after 2 years?",
-        answer="After working for 2 years, employees receive 20 days of PTO.",
-        context="Employees with 2-5 years tenure receive 20 days per year.",
-        expected_answer="20 days",
-        expected_doc="vacation_policy.txt",
-        retrieved_docs=["vacation_policy.txt", "benefits.txt"]
-    )
-    
-    print(f"Question: {result.question}")
-    print(f"Answer: {result.answer}")
-    print(f"\nScores:")
-    print(f"  Retrieval:    {result.retrieval_score:.2f}")
-    print(f"  Faithfulness: {result.faithfulness_score:.2f}")
-    print(f"  Correctness:  {result.correctness_score:.2f}")
-    print(f"  Overall:      {result.overall_score:.2f}")
+    agent = MemoryAgent()
+    result = agent.run("Calculate 15% of 250 and add 50 to it")
+    print(f"\nFinal: {result}")
 ```
 
-### Task 5: Run Full Evaluation Suite (45 min)
+### Task 3: Plan-and-Execute Agent (60 min)
 
 ```python
-# run_evaluation.py
-from rag_evaluator import evaluate_rag_response, EvalResult
-from typing import List
+# plan_agent.py
+from openai import OpenAI
+from dotenv import load_dotenv
 import json
 
-def run_evaluation_suite(rag_system, test_file: str = "test_data.json") -> List[EvalResult]:
-    """Run all test cases through the RAG system and evaluate."""
-    
-    # Load test cases
-    with open(test_file) as f:
-        test_cases = json.load(f)
-    
-    results = []
-    
-    for test in test_cases:
-        print(f"Testing: {test['question'][:50]}...")
-        
-        # Get RAG response (mock for now)
-        # response = rag_system.ask(test['question'])
-        
-        # Mock response for demo
-        mock_answer = f"Based on the {test['relevant_doc']}, {test['expected_answer']}."
-        mock_context = f"Document content about {test['expected_answer']}."
-        mock_docs = [test['relevant_doc']]
-        
-        result = evaluate_rag_response(
-            question=test['question'],
-            answer=mock_answer,
-            context=mock_context,
-            expected_answer=test['expected_answer'],
-            expected_doc=test['relevant_doc'],
-            retrieved_docs=mock_docs
-        )
-        
-        results.append(result)
-    
-    return results
+load_dotenv()
+client = OpenAI()
 
-def print_summary(results: List[EvalResult]):
-    """Print evaluation summary."""
-    
-    if not results:
-        print("No results")
-        return
-    
-    avg_retrieval = sum(r.retrieval_score for r in results) / len(results)
-    avg_faith = sum(r.faithfulness_score for r in results) / len(results)
-    avg_correct = sum(r.correctness_score for r in results) / len(results)
-    avg_overall = sum(r.overall_score for r in results) / len(results)
-    
-    print("\n" + "="*50)
-    print("EVALUATION SUMMARY")
-    print("="*50)
-    print(f"Total test cases: {len(results)}")
-    print(f"\nAverage Scores:")
-    print(f"  Retrieval:    {avg_retrieval:.2%}")
-    print(f"  Faithfulness: {avg_faith:.2%}")
-    print(f"  Correctness:  {avg_correct:.2%}")
-    print(f"  Overall:      {avg_overall:.2%}")
-    
-    # Find failures
-    failures = [r for r in results if r.overall_score < 0.7]
-    if failures:
-        print(f"\n⚠️  {len(failures)} test(s) below 70%:")
-        for r in failures:
-            print(f"  - {r.question[:50]}... ({r.overall_score:.2%})")
+class PlanAndExecuteAgent:
+    """Agent that creates a plan first, then executes it."""
 
-# Run
-if __name__ == "__main__":
-    # Create test data first
-    exec(open("test_dataset.py").read())
-    
-    results = run_evaluation_suite(None)
-    print_summary(results)
-```
-
-### Task 6: Regression Testing (30 min)
-
-```python
-# regression_test.py
-import json
-from datetime import datetime
-from pathlib import Path
-
-class RegressionTracker:
-    """Track evaluation results over time."""
-    
-    def __init__(self, results_file: str = "eval_history.json"):
-        self.results_file = Path(results_file)
-        self.history = self._load_history()
-    
-    def _load_history(self) -> list:
-        if self.results_file.exists():
-            return json.loads(self.results_file.read_text())
-        return []
-    
-    def save_result(self, scores: dict, version: str = None):
-        """Save evaluation result."""
-        result = {
-            "timestamp": datetime.now().isoformat(),
-            "version": version or "unknown",
-            "scores": scores
+    def __init__(self):
+        self.client = OpenAI()
+        self.tools = {
+            "search": lambda q: f"Results for '{q}': relevant information found",
+            "write": lambda text: f"Written: {text[:50]}...",
+            "calculate": lambda e: str(eval(e)),
         }
-        
-        self.history.append(result)
-        self.results_file.write_text(json.dumps(self.history, indent=2))
-        
-        # Check for regression
-        if len(self.history) > 1:
-            prev = self.history[-2]["scores"]
-            curr = scores
-            
-            for metric, value in curr.items():
-                if metric in prev and value < prev[metric] - 0.05:
-                    print(f"⚠️  REGRESSION: {metric} dropped from {prev[metric]:.2%} to {value:.2%}")
-    
-    def show_history(self):
-        """Print history."""
-        print("\nEvaluation History:")
-        for result in self.history[-5:]:
-            print(f"  {result['timestamp']}: {result['scores'].get('overall', 'N/A'):.2%}")
 
-# Usage
+    def create_plan(self, goal: str) -> list:
+        """Have LLM create a plan."""
+
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": f"""Create a step-by-step plan to achieve this goal:
+
+GOAL: {goal}
+
+Available tools: search(query), write(text), calculate(expression)
+
+Return JSON: {{"steps": ["step 1", "step 2", ...]}}
+Each step should be a specific action with the tool to use."""
+            }],
+            response_format={"type": "json_object"}
+        )
+
+        data = json.loads(response.choices[0].message.content)
+        return data.get("steps", [])
+
+    def execute_step(self, step: str, context: list) -> str:
+        """Execute a single step."""
+
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": f"""Execute this step:
+
+STEP: {step}
+
+Previous context:
+{chr(10).join(context[-3:])}
+
+Available tools: search(query), write(text), calculate(expression)
+
+Return JSON: {{"tool": "tool_name", "argument": "...", "reasoning": "..."}}"""
+            }],
+            response_format={"type": "json_object"}
+        )
+
+        data = json.loads(response.choices[0].message.content)
+
+        tool = data.get("tool", "")
+        arg = data.get("argument", "")
+
+        if tool in self.tools:
+            return self.tools[tool](arg)
+        return f"Executed: {step}"
+
+    def run(self, goal: str) -> str:
+        # Phase 1: Plan
+        print("📋 Creating plan...")
+        plan = self.create_plan(goal)
+
+        print(f"Plan ({len(plan)} steps):")
+        for i, step in enumerate(plan, 1):
+            print(f"  {i}. {step}")
+
+        # Phase 2: Execute
+        print("\n🚀 Executing plan...")
+        context = []
+
+        for i, step in enumerate(plan, 1):
+            print(f"\nStep {i}: {step}")
+            result = self.execute_step(step, context)
+            print(f"  → {result}")
+            context.append(f"{step}: {result}")
+
+        # Phase 3: Summarize
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": f"""Summarize what was accomplished:
+
+GOAL: {goal}
+
+EXECUTION:
+{chr(10).join(context)}
+
+Provide a brief summary of results."""
+            }]
+        )
+
+        return response.choices[0].message.content
+
+# Test
 if __name__ == "__main__":
-    tracker = RegressionTracker()
-    
-    # Save a result
-    tracker.save_result({
-        "retrieval": 0.85,
-        "faithfulness": 0.90,
-        "correctness": 0.88,
-        "overall": 0.88
-    }, version="v1.0")
-    
-    tracker.show_history()
+    agent = PlanAndExecuteAgent()
+    result = agent.run("Research Python's history and calculate how old it is")
+    print(f"\n✅ Summary:\n{result}")
+```
+
+### Task 4: Error-Handling Agent (45 min)
+
+```python
+# robust_agent.py
+from openai import OpenAI
+from dotenv import load_dotenv
+import json
+import traceback
+
+load_dotenv()
+client = OpenAI()
+
+class RobustAgent:
+    """Agent with error handling and retries."""
+
+    def __init__(self):
+        self.client = OpenAI()
+        self.max_retries = 3
+
+    def execute_with_retry(self, task: str) -> dict:
+        """Execute a task with retries on failure."""
+
+        errors = []
+
+        for attempt in range(self.max_retries):
+            try:
+                result = self._attempt_task(task, errors)
+                return {"success": True, "result": result, "attempts": attempt + 1}
+
+            except Exception as e:
+                error_msg = f"Attempt {attempt + 1}: {str(e)}"
+                errors.append(error_msg)
+                print(f"⚠️ {error_msg}")
+
+                if attempt == self.max_retries - 1:
+                    return {
+                        "success": False,
+                        "error": str(e),
+                        "attempts": self.max_retries,
+                        "all_errors": errors
+                    }
+
+    def _attempt_task(self, task: str, previous_errors: list) -> str:
+        """Single attempt at a task."""
+
+        error_context = ""
+        if previous_errors:
+            error_context = f"""
+Previous attempts failed:
+{chr(10).join(previous_errors)}
+
+Learn from these errors and try a different approach.
+"""
+
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": f"""Complete this task:
+
+TASK: {task}
+
+{error_context}
+
+Return JSON: {{
+    "approach": "how you'll do it",
+    "result": "the actual result"
+}}"""
+            }],
+            response_format={"type": "json_object"}
+        )
+
+        data = json.loads(response.choices[0].message.content)
+
+        # Simulate occasional failures for demo
+        import random
+        if random.random() < 0.3 and len(previous_errors) < 2:
+            raise Exception("Simulated random failure")
+
+        return data.get("result", "No result")
+
+    def run(self, goal: str) -> str:
+        """Run the agent on a goal."""
+
+        result = self.execute_with_retry(goal)
+
+        if result["success"]:
+            return f"✅ Success (attempts: {result['attempts']}): {result['result']}"
+        else:
+            return f"❌ Failed after {result['attempts']} attempts: {result['error']}"
+
+# Test
+if __name__ == "__main__":
+    agent = RobustAgent()
+    print(agent.run("What is 2 + 2?"))
+```
+
+### Task 5: Multi-Step Task Executor (60 min)
+
+```python
+# task_executor.py
+from openai import OpenAI
+from dotenv import load_dotenv
+from dataclasses import dataclass
+from typing import List, Optional
+import json
+
+load_dotenv()
+
+@dataclass
+class TaskResult:
+    task: str
+    success: bool
+    result: str
+    subtasks: List['TaskResult'] = None
+
+class TaskExecutor:
+    """Execute complex multi-step tasks."""
+
+    def __init__(self):
+        self.client = OpenAI()
+        self.tools = {
+            "search": lambda q: f"Found: {q}",
+            "write": lambda t: f"Created: {t[:30]}...",
+            "calculate": lambda e: str(eval(e)),
+            "list": lambda items: f"Listed {items}",
+        }
+
+    def decompose_task(self, task: str) -> List[str]:
+        """Break down a complex task."""
+
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": f"""Break this task into simple subtasks:
+
+TASK: {task}
+
+Tools available: search, write, calculate, list
+
+Return JSON: {{"subtasks": ["task1", "task2", ...]}}
+Each subtask should be simple and actionable."""
+            }],
+            response_format={"type": "json_object"}
+        )
+
+        data = json.loads(response.choices[0].message.content)
+        return data.get("subtasks", [task])
+
+    def execute_simple_task(self, task: str) -> str:
+        """Execute a simple atomic task."""
+
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": f"""Execute this task:
+
+TASK: {task}
+
+Available tools: search(query), write(text), calculate(expr), list(items)
+
+Return JSON: {{"tool": "name", "arg": "argument", "result": "what happened"}}"""
+            }],
+            response_format={"type": "json_object"}
+        )
+
+        data = json.loads(response.choices[0].message.content)
+
+        tool = data.get("tool", "")
+        if tool in self.tools:
+            return self.tools[tool](data.get("arg", ""))
+        return data.get("result", "Completed")
+
+    def execute(self, task: str) -> TaskResult:
+        """Execute a potentially complex task."""
+
+        # Try to decompose
+        subtasks = self.decompose_task(task)
+
+        if len(subtasks) <= 1:
+            # Simple task - execute directly
+            result = self.execute_simple_task(task)
+            return TaskResult(task=task, success=True, result=result)
+
+        # Complex task - execute subtasks
+        print(f"📋 Decomposed into {len(subtasks)} subtasks")
+
+        subtask_results = []
+        all_success = True
+
+        for i, subtask in enumerate(subtasks, 1):
+            print(f"  {i}. {subtask}")
+            result = self.execute_simple_task(subtask)
+            print(f"     → {result}")
+
+            subtask_results.append(TaskResult(
+                task=subtask,
+                success=True,
+                result=result
+            ))
+
+        # Combine results
+        combined = "\n".join([f"- {r.result}" for r in subtask_results])
+
+        return TaskResult(
+            task=task,
+            success=all_success,
+            result=combined,
+            subtasks=subtask_results
+        )
+
+# Test
+if __name__ == "__main__":
+    executor = TaskExecutor()
+
+    task = "Research Python's creation date, calculate its age, and list 3 major features"
+    print(f"🎯 Task: {task}\n")
+
+    result = executor.execute(task)
+
+    print(f"\n✅ Final Result:\n{result.result}")
 ```
 
 ---
 
 ## 🎯 Optional Challenges
 
-*You can't improve what you don't measure. Master evaluation here.*
+*Agents are complex. These challenges push your understanding.*
 
-### Challenge 1: Build a Human Evaluation Interface
-Create a simple UI (CLI or web) for human evaluation:
+### Challenge 1: Research Agent
+Build an agent that:
+1. Takes a research topic
+2. Searches for information (mock or real API)
+3. Reads and summarizes findings
+4. Compiles a structured report with citations
+
+### Challenge 2: Multi-Agent Debate
+Create two agents with opposing viewpoints:
 ```python
-# Show question, expected answer, actual answer
-# Collect human ratings (1-5) for:
-# - Correctness
-# - Helpfulness  
-# - Fluency
-# Compare human vs LLM-as-judge scores
+agent_optimist = Agent(system="You see the positive side of everything")
+agent_skeptic = Agent(system="You question everything critically")
+
+# Make them debate a topic for 5 rounds
+topic = "AI will replace most jobs"
+result = debate(agent_optimist, agent_skeptic, topic, rounds=5)
 ```
 
-### Challenge 2: Adversarial Test Set
-Create intentionally difficult test cases:
-- Questions with no answer in documents
-- Questions requiring synthesis across documents
-- Misleading questions (trick questions)
-- Very long context requirements
+### Challenge 3: Agent with Human Approval
+Build an agent that asks for human confirmation before:
+- Taking destructive actions (delete, overwrite)
+- Making external API calls
+- Spending above a token/cost threshold
 
-### Challenge 3: Regression Detection System
-Build automated regression detection:
 ```python
-def detect_regression(new_scores, baseline_scores, threshold=0.05):
-    # Return list of metrics that dropped significantly
-    # Integration: Block PR if regression detected
+if action.requires_approval:
+    approved = input(f"Allow '{action.description}'? (y/n): ")
+    if approved != 'y':
+        return "Action cancelled by user"
 ```
 
-### Challenge 4: Evaluate Across Models
-Test the same prompts across different models:
+### Challenge 4: Agent Memory Persistence
+Save agent state to a file:
 ```python
-models = ["gpt-4o-mini", "gpt-4o", "claude-sonnet"]
-for model in models:
-    scores = evaluate_rag(model, test_cases)
-    # Compare: Which model performs best?
-    # Cost vs quality tradeoff analysis
+agent.save_state("agent_state.json")  # Save memory, tool history
+agent.load_state("agent_state.json")  # Resume later
 ```
+Test: Start a task, kill the program, resume and complete it.
 
-### Challenge 5: Continuous Evaluation Pipeline
-Set up automated weekly evaluation:
-1. Run evaluation suite every Sunday
-2. Compare to last week's baseline
-3. Generate report with charts
-4. Send Slack notification with summary
-5. Archive results to database
+### Challenge 5: Agent Self-Improvement
+Build an agent that:
+1. Attempts a task
+2. Evaluates its own output ("Was this good? What went wrong?")
+3. Modifies its approach based on reflection
+4. Retries with improvements
 
 ---
 
 ## Knowledge Checklist
 
-- [ ] I understand why AI evaluation is essential
-- [ ] I can create test datasets for RAG
-- [ ] I can implement LLM-as-a-judge evaluation
-- [ ] I understand faithfulness vs correctness
-- [ ] I can track evaluations over time
-- [ ] I can detect regressions
-- [ ] I understand ground-truth curation best practices
-- [ ] I can integrate evaluations into CI/CD pipelines
+- [ ] I understand the difference between tools and agents
+- [ ] I can implement the ReAct pattern
+- [ ] I can build agents with memory
+- [ ] I understand plan-and-execute architecture
+- [ ] I can handle errors and retries
+- [ ] I can decompose complex tasks
 
 ---
 
 ## Deliverables
 
-1. `test_dataset.py` — Create test cases
-2. `simple_eval.py` — Basic correctness check
-3. `faithfulness_eval.py` — Check for hallucinations
-4. `rag_evaluator.py` — Full evaluation pipeline
-5. `run_evaluation.py` — Run evaluation suite
-6. `regression_test.py` — Track changes over time
+1. `react_agent.py` — Basic ReAct implementation
+2. `memory_agent.py` — Agent with working memory
+3. `plan_agent.py` — Plan-and-execute pattern
+4. `robust_agent.py` — Error handling
+5. `task_executor.py` — Multi-step execution
 
 ---
 
 ## What's Next?
 
-Next week: **Security & Guardrails** + your first portfolio project checkpoint!
+Next week: **Tool Calling & Function Execution** — teach AI to call real functions and take real actions!
 
 ---
 
 ## Resources
 
-- [RAGAS Framework](https://docs.ragas.io/)
-- [LangSmith Evaluation](https://docs.smith.langchain.com/)
-- [Evaluating LLM Applications](https://www.anthropic.com/news/evaluating-ai-systems)
+- [ReAct Paper](https://arxiv.org/abs/2210.03629)
+- [Building Agents](https://www.deeplearning.ai/short-courses/building-agentic-rag-with-llamaindex/)

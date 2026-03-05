@@ -1,783 +1,822 @@
-# Week 10: Agent Fundamentals
+# Week 10: LangGraph in Practice + LangSmith & Langfuse
 
-**Month:** 3 (Intelligence) | **Duration:** 6-8 hours
+**Month:** 3 (Intelligence) | **Duration:** 8-10 hours
 
 ---
 
 ## Overview
 
-Last week you gave AI tools. This week you'll create **agents** — AI systems that can plan, reason, and execute multi-step tasks autonomously. This is where AI gets truly powerful.
+Week 9 gave you LangGraph theory — all five workflow patterns, checkpointing, human-in-the-loop, and memory. This week you **build** with it. You'll implement the key patterns as running code, then hook them up to **LangSmith** and **Langfuse** — the two dominant observability platforms for LLM applications. By the end you'll be able to trace every token, inspect every tool call, and evaluate agent quality in a real dashboard.
 
 ---
 
 ## Learning Objectives
 
 By the end of this week, you will:
-- Understand the difference between tools and agents
-- Build a ReAct (Reason + Act) agent
-- Implement agent loops with planning
-- Handle errors and retries
-- Build an autonomous task executor
+- Build chaining, routing, and evaluator-optimizer LangGraph patterns from scratch
+- Add checkpointing and human-in-the-loop to a working agent
+- Connect a LangGraph agent to LangSmith for automatic tracing
+- Self-host or use cloud Langfuse for open-source observability
+- Create evaluation datasets and run LLM-as-judge in both platforms
+- Understand when to use LangSmith vs Langfuse vs custom logging
+
+---
+
+## Model Options
+
+| Feature | OpenAI (Paid) | Ollama (Free/Local) |
+|---------|--------------|---------------------|
+| LangGraph agent | `gpt-4o-mini` | `llama3.1:8b` |
+| LLM-as-judge evaluation | `gpt-4o-mini` | `qwq:32b` or `llama3.1:8b` |
+
+**Quick start with Ollama:**
+```bash
+ollama pull llama3.1:8b
+```
+
+```python
+from scripts.model_config import get_client, CHAT_MODEL, REASON_MODEL
+```
+
+> Both LangSmith and Langfuse are provider-agnostic — they trace any LLM call regardless of whether you use OpenAI or Ollama.
 
 ---
 
 ## Theory (2 hours)
 
-### 1. Tools vs Agents (30 min)
+### 1. LangGraph Patterns Recap (30 min)
 
-| Tool Calling | Agent |
-|--------------|-------|
-| One question → one action | One goal → many actions |
-| You manage the loop | Agent manages itself |
-| No memory between calls | Remembers and plans |
-| Reactive | Proactive |
+You learned these in week 9. Quick reference before implementation:
 
-**Tool calling:**
-```
-User: "What's the weather in Paris?"
-AI: get_weather("Paris") → "It's 18°C"
-Done.
-```
+| Pattern | Shape | Use When |
+|---------|-------|----------|
+| **Chaining** | A → B → C | Fixed sequential steps |
+| **Parallelization** | A → B+C → D | Independent sub-tasks |
+| **Routing** | A → if/else → B or C | Input-dependent branching |
+| **Orchestrator-Worker** | A → [B, C, D dynamic] | Unknown number of sub-tasks |
+| **Evaluator-Optimizer** | A → B → judge → loop | Output quality must meet threshold |
 
-**Agent:**
-```
-User: "Plan a weekend trip to Paris"
-Agent: 
-  1. First, I'll check the weather → get_weather("Paris")
-  2. Now I'll search for hotels → search_hotels("Paris")
-  3. Let me find activities → search_attractions("Paris")
-  4. I'll create an itinerary → create_plan(...)
-Done!
-```
+**The compile-run-inspect cycle:**
 
-### 2. The ReAct Pattern (30 min)
+```python
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
 
-**ReAct = Reasoning + Acting**
+app = builder.compile(checkpointer=MemorySaver())
 
-```
-GOAL: Book the cheapest flight to London
+# Thread config enables checkpointing and state history
+config = {"configurable": {"thread_id": "t1"}}
+result = app.invoke({"input": "..."}, config)
 
-THOUGHT: I need to search for available flights first
-ACTION: search_flights(destination="London", date="2024-03-15")
-OBSERVATION: [Flight results: $450, $380, $520]
+# Inspect state at any point
+snapshot = app.get_state(config)
+print(snapshot.values)   # current state dict
+print(snapshot.next)     # what node runs next (empty if done)
 
-THOUGHT: The $380 flight is cheapest. I should book it.
-ACTION: book_flight(flight_id="FL380")
-OBSERVATION: Booking confirmed #12345
-
-THOUGHT: I've booked the flight. Task complete.
-ANSWER: I booked flight #12345 for $380 to London.
+# Full history (every checkpoint)
+for step in app.get_state_history(config):
+    print(step.values, step.next)
 ```
 
-**Key components:**
-- **Thought**: Planning what to do next
-- **Action**: Executing a tool
-- **Observation**: Seeing the result
-- **Loop**: Repeat until goal achieved
+### 2. LangSmith (45 min)
 
-### 3. Agent Architecture (30 min)
+**What it is:** LangChain's hosted observability and evaluation platform. Zero code changes needed — set two env vars and every LangChain/LangGraph call appears in the dashboard as a traced tree.
 
-```
-┌────────────────────────────────────────────────┐
-│                     AGENT                      │
-├────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────┐ │
-│  │               MEMORY                      │ │
-│  │  - Conversation history                   │ │
-│  │  - Task state                             │ │
-│  │  - Previous observations                  │ │
-│  └──────────────────────────────────────────┘ │
-│                      ↓                         │
-│  ┌──────────────────────────────────────────┐ │
-│  │            REASONING (LLM)                │ │
-│  │  - What's the current state?              │ │
-│  │  - What should I do next?                 │ │
-│  │  - Am I done?                             │ │
-│  └──────────────────────────────────────────┘ │
-│                      ↓                         │
-│  ┌──────────────────────────────────────────┐ │
-│  │               TOOLS                        │ │
-│  │  search() │ calculate() │ write()         │ │
-│  └──────────────────────────────────────────┘ │
-└────────────────────────────────────────────────┘
+**Core features:**
+
+| Feature | What it does |
+|---------|-------------|
+| **Automatic tracing** | Every LangGraph run is a full trace tree |
+| **Run details** | Input/output, tokens, latency, cost per node |
+| **Datasets** | Golden Q&A pairs for regression testing |
+| **Evaluators** | LLM-as-judge, exact match, embedding similarity |
+| **Prompt Hub** | Version-controlled, shareable prompt templates |
+
+**Setup (under 2 minutes):**
+```bash
+pip install langsmith langchain-openai langgraph
+export LANGCHAIN_TRACING_V2=true
+export LANGCHAIN_API_KEY=ls-...        # from smith.langchain.com
+export LANGCHAIN_PROJECT=week-10       # groups traces by project
 ```
 
-### 4. Common Agent Patterns (30 min)
+That is all. Now every `app.invoke()` call auto-traces to `smith.langchain.com`.
 
-| Pattern | Use Case |
-|---------|----------|
-| **ReAct** | General reasoning + action |
-| **Plan-and-Execute** | Complex multi-step tasks |
-| **Self-Reflection** | Improve answers iteratively |
-| **Multi-Agent** | Specialized collaboration |
+**Running a programmatic evaluation:**
+```python
+from langsmith import Client
+from langsmith.evaluation import evaluate
+from langchain_openai import ChatOpenAI
+
+client = Client()
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+# 1. Build a dataset
+dataset = client.create_dataset("rag-eval-v1")
+client.create_examples(
+    inputs=[{"question": "What is RAG?"}],
+    outputs=[{"answer": "Retrieval-Augmented Generation combines search with LLM generation"}],
+    dataset_id=dataset.id
+)
+
+# 2. Define an LLM-as-judge evaluator
+def correctness(run, example):
+    score_text = llm.invoke(
+        f"Rate 0-1: Expected='{example.outputs['answer']}' Got='{run.outputs['answer']}'. Reply with float only."
+    ).content
+    return {"key": "correctness", "score": float(score_text.strip())}
+
+# 3. Run evaluation
+results = evaluate(
+    lambda inputs: {"answer": my_rag_chain(inputs["question"])},
+    data=dataset.name,
+    evaluators=[correctness],
+    experiment_prefix="baseline"
+)
+```
+
+### 3. Langfuse (45 min)
+
+**What it is:** Open-source LLM observability. Self-host for full data privacy, or use Langfuse Cloud. Works with any LLM stack — not tied to LangChain.
+
+**Core features:**
+
+| Feature | What it does |
+|---------|-------------|
+| **Traces** | Hierarchical spans per LLM/function call |
+| **Scores** | Attach numeric or boolean quality signals |
+| **Datasets** | Evaluation sets with expected outputs |
+| **Prompt Management** | Version prompts, track which version ran per trace |
+| **Cost tracking** | Token usage and estimated cost per trace |
+| **Self-hostable** | Free Docker Compose deployment |
+
+**Setup options:**
+```bash
+# Option A: Langfuse Cloud (easiest)
+pip install langfuse
+export LANGFUSE_PUBLIC_KEY=pk-lf-...
+export LANGFUSE_SECRET_KEY=sk-lf-...
+# No LANGFUSE_HOST needed — defaults to cloud.langfuse.com
+
+# Option B: Self-hosted (full privacy)
+git clone https://github.com/langfuse/langfuse && cd langfuse
+cp .env.langfuse.example .env   # edit with random NEXTAUTH_SECRET, SALT
+docker compose up -d
+# UI at http://localhost:3000 — create API keys there
+export LANGFUSE_PUBLIC_KEY=pk-lf-...
+export LANGFUSE_SECRET_KEY=sk-lf-...
+export LANGFUSE_HOST=http://localhost:3000
+```
+
+**Two integration styles:**
+
+```python
+# Style 1: @observe decorator (zero-boilerplate)
+from langfuse.decorators import observe, langfuse_context
+
+@observe()
+def my_pipeline(question: str) -> str:
+    answer = call_llm(question)
+    langfuse_context.score_current_trace(name="relevance", value=0.9)
+    return answer
+
+# Style 2: LangChain CallbackHandler (for LangGraph)
+from langfuse.callback import CallbackHandler
+
+handler = CallbackHandler()   # reads env vars automatically
+result = app.invoke(input, config={"callbacks": [handler]})
+
+# Attach a manual score after the fact
+from langfuse import Langfuse
+lf = Langfuse()
+lf.score(trace_id=handler.get_trace_id(), name="helpfulness", value=1.0)
+lf.flush()   # always flush before process exit
+```
+
+### 4. LangSmith vs Langfuse vs Custom (15 min)
+
+| | LangSmith | Langfuse | Custom (week 12) |
+|---|-----------|----------|----------------|
+| **Setup** | 2 env vars | 2 env vars | Write code |
+| **Self-hosted** | No | Yes (free) | Yes |
+| **LangGraph native** | Yes, automatic | Via callback | Manual |
+| **Non-LangChain** | Limited | First-class | Full control |
+| **Eval datasets** | Yes | Yes | Build yourself |
+| **Prompt management** | Prompt Hub | Prompts UI | None |
+| **Cost** | Free tier + paid | Free OSS | Your infra cost |
+
+**Decision guide:**
+- Use **LangSmith** when: your stack is LangChain/LangGraph and setup time matters.
+- Use **Langfuse** when: you need self-hosted, non-LangChain SDKs, or team-level prompt management.
+- Use **custom logging** when: you need to integrate with existing APM (Datadog, Azure Monitor) or need both.
 
 ---
 
 ## Hands-On Practice (4-6 hours)
 
-### Task 1: Simple ReAct Agent (60 min)
+### Task 1: LangGraph Chaining + Routing (60 min)
+
+Build two patterns as standalone scripts:
 
 ```python
-# react_agent.py
-from openai import OpenAI
-from dotenv import load_dotenv
-import json
-import re
+# langgraph_patterns.py
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+from typing import TypedDict, Literal
 
-load_dotenv()
-client = OpenAI()
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-# Tools
-def search_web(query: str) -> str:
-    """Mock web search."""
-    return f"Search results for '{query}': Found relevant information about {query}."
+# ---- Pattern 1: Chaining (summarize → translate → format) ----
 
-def calculate(expression: str) -> str:
-    """Calculate math expression."""
-    try:
-        return str(eval(expression))
-    except:
-        return "Error in calculation"
+class ChainState(TypedDict):
+    text: str
+    summary: str
+    translated: str
+    final: str
 
-def get_weather(city: str) -> str:
-    """Mock weather."""
-    return f"Weather in {city}: 20°C, partly cloudy"
+def summarize(state: ChainState) -> dict:
+    r = llm.invoke([SystemMessage("Summarize in one sentence."), HumanMessage(state["text"])])
+    return {"summary": r.content}
 
-tools = {
-    "search_web": search_web,
-    "calculate": calculate,
-    "get_weather": get_weather
-}
+def translate_to_french(state: ChainState) -> dict:
+    r = llm.invoke([SystemMessage("Translate to French."), HumanMessage(state["summary"])])
+    return {"translated": r.content}
 
-REACT_PROMPT = """You are a helpful assistant that uses tools to answer questions.
+def format_output(state: ChainState) -> dict:
+    return {"final": f"FR: {state['translated']}"}
 
-Available tools:
-- search_web(query): Search the web for information
-- calculate(expression): Do math calculations
-- get_weather(city): Get weather for a city
+chain = StateGraph(ChainState)
+chain.add_node("summarize", summarize)
+chain.add_node("translate", translate_to_french)
+chain.add_node("format", format_output)
+chain.add_edge(START, "summarize")
+chain.add_edge("summarize", "translate")
+chain.add_edge("translate", "format")
+chain.add_edge("format", END)
+chain_app = chain.compile()
 
-Always use this format:
-THOUGHT: [your reasoning about what to do]
-ACTION: tool_name(arguments)
+# ---- Pattern 2: Routing (classify → specialist) ----
 
-When you have enough information:
-THOUGHT: [summary of what you learned]
-ANSWER: [your final answer]
+class RouteState(TypedDict):
+    question: str
+    category: str
+    answer: str
 
-Begin!
+def classify(state: RouteState) -> dict:
+    r = llm.invoke([
+        SystemMessage('Classify the question. Reply with exactly one word: "math", "science", or "general"'),
+        HumanMessage(state["question"])
+    ])
+    return {"category": r.content.strip().lower()}
 
-Question: {question}
-"""
+def route(state: RouteState) -> Literal["math_expert", "science_expert", "general_assistant"]:
+    c = state["category"]
+    if "math" in c:
+        return "math_expert"
+    if "science" in c:
+        return "science_expert"
+    return "general_assistant"
 
-def parse_response(text: str) -> tuple:
-    """Parse agent response into thought, action, or answer."""
-    
-    # Check for answer
-    if "ANSWER:" in text:
-        thought = re.search(r"THOUGHT:(.*?)(?:ANSWER:|$)", text, re.DOTALL)
-        answer = re.search(r"ANSWER:(.*?)$", text, re.DOTALL)
-        return "answer", {
-            "thought": thought.group(1).strip() if thought else "",
-            "answer": answer.group(1).strip() if answer else text
-        }
-    
-    # Check for action
-    if "ACTION:" in text:
-        thought = re.search(r"THOUGHT:(.*?)ACTION:", text, re.DOTALL)
-        action = re.search(r"ACTION:\s*(\w+)\((.*?)\)", text)
-        
-        if action:
-            return "action", {
-                "thought": thought.group(1).strip() if thought else "",
-                "tool": action.group(1),
-                "args": action.group(2).strip('"\'')
-            }
-    
-    return "unknown", {"text": text}
+def math_expert(state: RouteState) -> dict:
+    r = llm.invoke([SystemMessage("You are a math expert."), HumanMessage(state["question"])])
+    return {"answer": r.content}
 
-def run_agent(question: str, max_steps: int = 5) -> str:
-    """Run the ReAct agent."""
-    
-    prompt = REACT_PROMPT.format(question=question)
-    messages = [{"role": "user", "content": prompt}]
-    
-    for step in range(max_steps):
-        print(f"\n--- Step {step + 1} ---")
-        
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            temperature=0
-        )
-        
-        text = response.choices[0].message.content
-        print(text)
-        
-        result_type, data = parse_response(text)
-        
-        if result_type == "answer":
-            return data["answer"]
-        
-        if result_type == "action":
-            # Execute tool
-            tool_name = data["tool"]
-            tool_args = data["args"]
-            
-            if tool_name in tools:
-                observation = tools[tool_name](tool_args)
-            else:
-                observation = f"Unknown tool: {tool_name}"
-            
-            print(f"OBSERVATION: {observation}")
-            
-            # Add to messages
-            messages.append({"role": "assistant", "content": text})
-            messages.append({"role": "user", "content": f"OBSERVATION: {observation}"})
-        else:
-            messages.append({"role": "assistant", "content": text})
-            messages.append({"role": "user", "content": "Continue reasoning. Use THOUGHT/ACTION or ANSWER format."})
-    
-    return "Max steps reached without answer"
+def science_expert(state: RouteState) -> dict:
+    r = llm.invoke([SystemMessage("You are a science expert."), HumanMessage(state["question"])])
+    return {"answer": r.content}
 
-# Test
+def general_assistant(state: RouteState) -> dict:
+    r = llm.invoke([HumanMessage(state["question"])])
+    return {"answer": r.content}
+
+router = StateGraph(RouteState)
+for name, fn in [("classify", classify), ("math_expert", math_expert),
+                  ("science_expert", science_expert), ("general_assistant", general_assistant)]:
+    router.add_node(name, fn)
+router.add_edge(START, "classify")
+router.add_conditional_edges("classify", route)
+for n in ["math_expert", "science_expert", "general_assistant"]:
+    router.add_edge(n, END)
+route_app = router.compile()
+
 if __name__ == "__main__":
-    questions = [
-        "What is 25 * 17?",
-        "What's the weather like in Tokyo?",
-        "Calculate 15% of 200 and tell me if it's more than 25"
-    ]
-    
-    for q in questions:
-        print(f"\n{'='*50}")
-        print(f"QUESTION: {q}")
-        print("="*50)
-        answer = run_agent(q)
-        print(f"\n✅ FINAL: {answer}")
+    # Chaining
+    r = chain_app.invoke({"text": "The mitochondria is the powerhouse of the cell and produces ATP."})
+    print("Chain:", r["final"])
+
+    # Routing
+    for q in ["What is 2+2?", "Why is the sky blue?", "Tell me a joke"]:
+        r = route_app.invoke({"question": q})
+        print(f"Route [{r['category']}]: {r['answer'][:60]}...")
 ```
 
-### Task 2: Agent with Memory (45 min)
+### Task 2: Evaluator-Optimizer with Checkpointing (60 min)
 
 ```python
-# memory_agent.py
-from openai import OpenAI
-from dotenv import load_dotenv
-from dataclasses import dataclass, field
-from typing import List, Dict
-import json
+# evaluator_optimizer.py
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+from typing import TypedDict, Literal
+import json, re
 
-load_dotenv()
-client = OpenAI()
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+judge_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-@dataclass
-class AgentMemory:
-    """Agent's working memory."""
-    goal: str = ""
-    steps_taken: List[Dict] = field(default_factory=list)
-    observations: List[str] = field(default_factory=list)
-    current_plan: List[str] = field(default_factory=list)
-    
-    def add_step(self, thought: str, action: str, result: str):
-        self.steps_taken.append({
-            "thought": thought,
-            "action": action,
-            "result": result
-        })
-        self.observations.append(result)
-    
-    def summary(self) -> str:
-        return f"""
-GOAL: {self.goal}
+MAX_ITER = 3
+THRESHOLD = 0.8
 
-COMPLETED STEPS:
-{chr(10).join([f"- {s['action']}: {s['result'][:100]}" for s in self.steps_taken])}
-
-OBSERVATIONS SO FAR:
-{chr(10).join(self.observations[-3:])}
-"""
-
-class MemoryAgent:
-    def __init__(self):
-        self.client = OpenAI()
-        self.memory = AgentMemory()
-        self.tools = {
-            "search": lambda q: f"Found info about: {q}",
-            "calculate": lambda e: str(eval(e)),
-            "note": lambda n: f"Noted: {n}"
-        }
-    
-    def run(self, goal: str, max_steps: int = 5) -> str:
-        self.memory.goal = goal
-        
-        for step in range(max_steps):
-            # Build prompt with memory
-            prompt = f"""
-{self.memory.summary()}
-
-Available tools: search(query), calculate(expr), note(text)
-
-What should you do next to achieve the goal?
-Respond with JSON: {{"thought": "...", "action": "tool(arg)", "done": false}}
-Or if complete: {{"thought": "...", "answer": "...", "done": true}}
-"""
-            
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}
-            )
-            
-            data = json.loads(response.choices[0].message.content)
-            print(f"Step {step + 1}: {data}")
-            
-            if data.get("done"):
-                return data.get("answer", "Completed")
-            
-            # Execute action
-            action = data.get("action", "")
-            import re
-            match = re.match(r"(\w+)\((.*?)\)", action)
-            
-            if match:
-                tool, arg = match.groups()
-                result = self.tools.get(tool, lambda x: "Unknown tool")(arg.strip('"\''))
-                self.memory.add_step(data.get("thought", ""), action, result)
-            else:
-                self.memory.add_step(data.get("thought", ""), "none", "No action taken")
-        
-        return "Goal not completed in max steps"
-
-# Test
-if __name__ == "__main__":
-    agent = MemoryAgent()
-    result = agent.run("Calculate 15% of 250 and add 50 to it")
-    print(f"\nFinal: {result}")
-```
-
-### Task 3: Plan-and-Execute Agent (60 min)
-
-```python
-# plan_agent.py
-from openai import OpenAI
-from dotenv import load_dotenv
-import json
-
-load_dotenv()
-client = OpenAI()
-
-class PlanAndExecuteAgent:
-    """Agent that creates a plan first, then executes it."""
-    
-    def __init__(self):
-        self.client = OpenAI()
-        self.tools = {
-            "search": lambda q: f"Results for '{q}': relevant information found",
-            "write": lambda text: f"Written: {text[:50]}...",
-            "calculate": lambda e: str(eval(e)),
-        }
-    
-    def create_plan(self, goal: str) -> list:
-        """Have LLM create a plan."""
-        
-        response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": f"""Create a step-by-step plan to achieve this goal:
-                
-GOAL: {goal}
-
-Available tools: search(query), write(text), calculate(expression)
-
-Return JSON: {{"steps": ["step 1", "step 2", ...]}}
-Each step should be a specific action with the tool to use."""
-            }],
-            response_format={"type": "json_object"}
-        )
-        
-        data = json.loads(response.choices[0].message.content)
-        return data.get("steps", [])
-    
-    def execute_step(self, step: str, context: list) -> str:
-        """Execute a single step."""
-        
-        response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": f"""Execute this step:
-                
-STEP: {step}
-
-Previous context:
-{chr(10).join(context[-3:])}
-
-Available tools: search(query), write(text), calculate(expression)
-
-Return JSON: {{"tool": "tool_name", "argument": "...", "reasoning": "..."}}"""
-            }],
-            response_format={"type": "json_object"}
-        )
-        
-        data = json.loads(response.choices[0].message.content)
-        
-        tool = data.get("tool", "")
-        arg = data.get("argument", "")
-        
-        if tool in self.tools:
-            return self.tools[tool](arg)
-        return f"Executed: {step}"
-    
-    def run(self, goal: str) -> str:
-        # Phase 1: Plan
-        print("📋 Creating plan...")
-        plan = self.create_plan(goal)
-        
-        print(f"Plan ({len(plan)} steps):")
-        for i, step in enumerate(plan, 1):
-            print(f"  {i}. {step}")
-        
-        # Phase 2: Execute
-        print("\n🚀 Executing plan...")
-        context = []
-        
-        for i, step in enumerate(plan, 1):
-            print(f"\nStep {i}: {step}")
-            result = self.execute_step(step, context)
-            print(f"  → {result}")
-            context.append(f"{step}: {result}")
-        
-        # Phase 3: Summarize
-        response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": f"""Summarize what was accomplished:
-
-GOAL: {goal}
-
-EXECUTION:
-{chr(10).join(context)}
-
-Provide a brief summary of results."""
-            }]
-        )
-        
-        return response.choices[0].message.content
-
-# Test
-if __name__ == "__main__":
-    agent = PlanAndExecuteAgent()
-    result = agent.run("Research Python's history and calculate how old it is")
-    print(f"\n✅ Summary:\n{result}")
-```
-
-### Task 4: Error-Handling Agent (45 min)
-
-```python
-# robust_agent.py
-from openai import OpenAI
-from dotenv import load_dotenv
-import json
-import traceback
-
-load_dotenv()
-client = OpenAI()
-
-class RobustAgent:
-    """Agent with error handling and retries."""
-    
-    def __init__(self):
-        self.client = OpenAI()
-        self.max_retries = 3
-    
-    def execute_with_retry(self, task: str) -> dict:
-        """Execute a task with retries on failure."""
-        
-        errors = []
-        
-        for attempt in range(self.max_retries):
-            try:
-                result = self._attempt_task(task, errors)
-                return {"success": True, "result": result, "attempts": attempt + 1}
-            
-            except Exception as e:
-                error_msg = f"Attempt {attempt + 1}: {str(e)}"
-                errors.append(error_msg)
-                print(f"⚠️ {error_msg}")
-                
-                if attempt == self.max_retries - 1:
-                    return {
-                        "success": False,
-                        "error": str(e),
-                        "attempts": self.max_retries,
-                        "all_errors": errors
-                    }
-    
-    def _attempt_task(self, task: str, previous_errors: list) -> str:
-        """Single attempt at a task."""
-        
-        error_context = ""
-        if previous_errors:
-            error_context = f"""
-Previous attempts failed:
-{chr(10).join(previous_errors)}
-
-Learn from these errors and try a different approach.
-"""
-        
-        response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": f"""Complete this task:
-
-TASK: {task}
-
-{error_context}
-
-Return JSON: {{
-    "approach": "how you'll do it",
-    "result": "the actual result"
-}}"""
-            }],
-            response_format={"type": "json_object"}
-        )
-        
-        data = json.loads(response.choices[0].message.content)
-        
-        # Simulate occasional failures for demo
-        import random
-        if random.random() < 0.3 and len(previous_errors) < 2:
-            raise Exception("Simulated random failure")
-        
-        return data.get("result", "No result")
-    
-    def run(self, goal: str) -> str:
-        """Run the agent on a goal."""
-        
-        result = self.execute_with_retry(goal)
-        
-        if result["success"]:
-            return f"✅ Success (attempts: {result['attempts']}): {result['result']}"
-        else:
-            return f"❌ Failed after {result['attempts']} attempts: {result['error']}"
-
-# Test
-if __name__ == "__main__":
-    agent = RobustAgent()
-    print(agent.run("What is 2 + 2?"))
-```
-
-### Task 5: Multi-Step Task Executor (60 min)
-
-```python
-# task_executor.py
-from openai import OpenAI
-from dotenv import load_dotenv
-from dataclasses import dataclass
-from typing import List, Optional
-import json
-
-load_dotenv()
-
-@dataclass
-class TaskResult:
+class EvalState(TypedDict):
     task: str
-    success: bool
-    result: str
-    subtasks: List['TaskResult'] = None
+    draft: str
+    feedback: str
+    score: float
+    iterations: int
+    final: str
 
-class TaskExecutor:
-    """Execute complex multi-step tasks."""
-    
-    def __init__(self):
-        self.client = OpenAI()
-        self.tools = {
-            "search": lambda q: f"Found: {q}",
-            "write": lambda t: f"Created: {t[:30]}...",
-            "calculate": lambda e: str(eval(e)),
-            "list": lambda items: f"Listed {items}",
-        }
-    
-    def decompose_task(self, task: str) -> List[str]:
-        """Break down a complex task."""
-        
-        response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": f"""Break this task into simple subtasks:
+def generate(state: EvalState) -> dict:
+    prompt = state["task"]
+    if state.get("feedback"):
+        prompt += f"\n\nPrevious feedback to address:\n{state['feedback']}"
+    r = llm.invoke([SystemMessage("You are a skilled writer. Produce high-quality output."), HumanMessage(prompt)])
+    return {"draft": r.content, "iterations": state.get("iterations", 0) + 1}
 
-TASK: {task}
+def evaluate(state: EvalState) -> dict:
+    r = judge_llm.invoke([
+        SystemMessage('Judge this output 0.0-1.0. Respond as JSON: {"score": 0.7, "feedback": "..."}'),
+        HumanMessage(f"Task: {state['task']}\n\nOutput:\n{state['draft']}")
+    ])
+    match = re.search(r'\{.*\}', r.content, re.DOTALL)
+    data = json.loads(match.group()) if match else {"score": 0.5, "feedback": "No feedback"}
+    return {"score": data["score"], "feedback": data["feedback"]}
 
-Tools available: search, write, calculate, list
+def should_continue(state: EvalState) -> Literal["generate", "accept"]:
+    return "accept" if state["score"] >= THRESHOLD or state["iterations"] >= MAX_ITER else "generate"
 
-Return JSON: {{"subtasks": ["task1", "task2", ...]}}
-Each subtask should be simple and actionable."""
-            }],
-            response_format={"type": "json_object"}
-        )
-        
-        data = json.loads(response.choices[0].message.content)
-        return data.get("subtasks", [task])
-    
-    def execute_simple_task(self, task: str) -> str:
-        """Execute a simple atomic task."""
-        
-        response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": f"""Execute this task:
+def accept(state: EvalState) -> dict:
+    return {"final": state["draft"]}
 
-TASK: {task}
+builder = StateGraph(EvalState)
+builder.add_node("generate", generate)
+builder.add_node("evaluate", evaluate)
+builder.add_node("accept", accept)
+builder.add_edge(START, "generate")
+builder.add_edge("generate", "evaluate")
+builder.add_conditional_edges("evaluate", should_continue)
+builder.add_edge("accept", END)
 
-Available tools: search(query), write(text), calculate(expr), list(items)
+app = builder.compile(checkpointer=MemorySaver())
 
-Return JSON: {{"tool": "name", "arg": "argument", "result": "what happened"}}"""
-            }],
-            response_format={"type": "json_object"}
-        )
-        
-        data = json.loads(response.choices[0].message.content)
-        
-        tool = data.get("tool", "")
-        if tool in self.tools:
-            return self.tools[tool](data.get("arg", ""))
-        return data.get("result", "Completed")
-    
-    def execute(self, task: str) -> TaskResult:
-        """Execute a potentially complex task."""
-        
-        # Try to decompose
-        subtasks = self.decompose_task(task)
-        
-        if len(subtasks) <= 1:
-            # Simple task - execute directly
-            result = self.execute_simple_task(task)
-            return TaskResult(task=task, success=True, result=result)
-        
-        # Complex task - execute subtasks
-        print(f"📋 Decomposed into {len(subtasks)} subtasks")
-        
-        subtask_results = []
-        all_success = True
-        
-        for i, subtask in enumerate(subtasks, 1):
-            print(f"  {i}. {subtask}")
-            result = self.execute_simple_task(subtask)
-            print(f"     → {result}")
-            
-            subtask_results.append(TaskResult(
-                task=subtask,
-                success=True,
-                result=result
-            ))
-        
-        # Combine results
-        combined = "\n".join([f"- {r.result}" for r in subtask_results])
-        
-        return TaskResult(
-            task=task,
-            success=all_success,
-            result=combined,
-            subtasks=subtask_results
-        )
-
-# Test
 if __name__ == "__main__":
-    executor = TaskExecutor()
-    
-    task = "Research Python's creation date, calculate its age, and list 3 major features"
-    print(f"🎯 Task: {task}\n")
-    
-    result = executor.execute(task)
-    
-    print(f"\n✅ Final Result:\n{result.result}")
+    config = {"configurable": {"thread_id": "eval-demo"}}
+    result = app.invoke(
+        {"task": "Write a 2-sentence pitch for an AI observability tool.", "iterations": 0},
+        config=config
+    )
+
+    print(f"Iterations: {result['iterations']} | Score: {result['score']:.2f}")
+    print(f"Output: {result['final']}")
+
+    # Show all checkpointed states
+    history = list(app.get_state_history(config))
+    print(f"\n{len(history)} checkpoints saved")
+    for step in reversed(history):
+        print(f"  → {step.next or ['END']} | score={step.values.get('score', '-')}")
 ```
 
----
-
-## 🎯 Optional Challenges
-
-*Agents are complex. These challenges push your understanding.*
-
-### Challenge 1: Research Agent
-Build an agent that:
-1. Takes a research topic
-2. Searches for information (mock or real API)
-3. Reads and summarizes findings
-4. Compiles a structured report with citations
-
-### Challenge 2: Multi-Agent Debate
-Create two agents with opposing viewpoints:
-```python
-agent_optimist = Agent(system="You see the positive side of everything")
-agent_skeptic = Agent(system="You question everything critically")
-
-# Make them debate a topic for 5 rounds
-topic = "AI will replace most jobs"
-result = debate(agent_optimist, agent_skeptic, topic, rounds=5)
-```
-
-### Challenge 3: Agent with Human Approval
-Build an agent that asks for human confirmation before:
-- Taking destructive actions (delete, overwrite)
-- Making external API calls
-- Spending above a token/cost threshold
+### Task 3: Human-in-the-Loop Agent (60 min)
 
 ```python
-if action.requires_approval:
-    approved = input(f"Allow '{action.description}'? (y/n): ")
-    if approved != 'y':
-        return "Action cancelled by user"
+# human_in_loop.py
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import interrupt
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, AIMessage
+from typing import TypedDict, Annotated
+import operator
+
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+class ReviewState(TypedDict):
+    messages: Annotated[list, operator.add]
+    draft_action: str
+    approved: bool
+
+def plan_action(state: ReviewState) -> dict:
+    response = llm.invoke(state["messages"] + [
+        HumanMessage("What specific action should we take? Be concrete.")
+    ])
+    return {"messages": [AIMessage(response.content)], "draft_action": response.content}
+
+def human_review(state: ReviewState) -> dict:
+    # interrupt() pauses graph; resumes after app.update_state()
+    decision = interrupt({
+        "question": "Approve this action?",
+        "action": state["draft_action"]
+    })
+    approved = str(decision).lower() in ("yes", "y", "approve")
+    return {
+        "approved": approved,
+        "messages": [HumanMessage(f"Decision: {'approved' if approved else 'rejected'}")]
+    }
+
+def execute_action(state: ReviewState) -> dict:
+    r = llm.invoke([HumanMessage(f"Execute this: {state['draft_action']}")])
+    return {"messages": [AIMessage(f"Done: {r.content[:100]}")]}
+
+def reject_action(state: ReviewState) -> dict:
+    return {"messages": [AIMessage("Action rejected. No changes made.")]}
+
+builder = StateGraph(ReviewState)
+builder.add_node("plan", plan_action)
+builder.add_node("review", human_review)
+builder.add_node("execute", execute_action)
+builder.add_node("reject", reject_action)
+builder.add_edge(START, "plan")
+builder.add_edge("plan", "review")
+builder.add_conditional_edges(
+    "review",
+    lambda s: "execute" if s["approved"] else "reject"
+)
+builder.add_edge("execute", END)
+builder.add_edge("reject", END)
+
+app = builder.compile(checkpointer=MemorySaver(), interrupt_before=["review"])
+
+if __name__ == "__main__":
+    config = {"configurable": {"thread_id": "review-demo"}}
+
+    # Run until interrupt
+    app.invoke(
+        {"messages": [HumanMessage("Archive all log files older than 90 days.")], "approved": False},
+        config=config
+    )
+
+    snapshot = app.get_state(config)
+    print(f"Paused before: {snapshot.next}")
+    print(f"Proposed: {snapshot.values['draft_action'][:100]}")
+
+    # Human approves
+    decision = input("Approve? (yes/no): ").strip()
+    app.update_state(config, {"approved": decision.lower() in ("yes", "y")}, as_node="review")
+
+    # Resume
+    final = app.invoke(None, config)
+    for msg in final["messages"][-2:]:
+        print(f"[{type(msg).__name__}]: {msg.content[:80]}")
 ```
 
-### Challenge 4: Agent Memory Persistence
-Save agent state to a file:
+### Task 4: LangSmith Tracing + Evaluation (45 min)
+
+```bash
+pip install langsmith langchain-openai langgraph
+export LANGCHAIN_TRACING_V2=true
+export LANGCHAIN_API_KEY=ls-...
+export LANGCHAIN_PROJECT=week-10-practice
+```
+
 ```python
-agent.save_state("agent_state.json")  # Save memory, tool history
-agent.load_state("agent_state.json")  # Resume later
-```
-Test: Start a task, kill the program, resume and complete it.
+# langsmith_tracing.py
+from langsmith import Client, traceable
+from langsmith.evaluation import evaluate
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
 
-### Challenge 5: Agent Self-Improvement
-Build an agent that:
-1. Attempts a task
-2. Evaluates its own output ("Was this good? What went wrong?")
-3. Modifies its approach based on reflection
-4. Retries with improvements
+client = Client()
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+# @traceable adds a named span — appears nested inside auto-traces
+@traceable(name="retrieval")
+def fake_retrieval(query: str) -> list[str]:
+    return [f"Doc 1 about {query}: relevant content here", f"Doc 2 about {query}: more context"]
+
+@traceable(name="rag_pipeline")
+def rag_answer(question: str) -> str:
+    docs = fake_retrieval(question)
+    context = "\n".join(docs)
+    r = llm.invoke([HumanMessage(f"Context:\n{context}\n\nQuestion: {question}")])
+    return r.content
+
+# --- Dataset setup ---
+def get_or_create_dataset(name: str) -> str:
+    existing = [d.name for d in client.list_datasets()]
+    if name not in existing:
+        ds = client.create_dataset(name)
+        client.create_examples(
+            inputs=[
+                {"question": "What is LangGraph?"},
+                {"question": "What is LangSmith?"},
+                {"question": "How does RAG work?"},
+            ],
+            outputs=[
+                {"answer": "LangGraph is a framework for building stateful agent workflows using directed graphs"},
+                {"answer": "LangSmith is an observability and evaluation platform for LLM applications"},
+                {"answer": "RAG retrieves relevant documents and injects them as context for the LLM to answer"},
+            ],
+            dataset_id=ds.id
+        )
+        print(f"Created dataset: {name}")
+    return name
+
+# --- LLM-as-judge evaluator ---
+def correctness_evaluator(run, example):
+    r = llm.invoke([HumanMessage(
+        f"Rate correctness 0.0-1.0. Expected: '{example.outputs['answer']}'. "
+        f"Got: '{run.outputs['output']}'. Reply with float only."
+    )])
+    try:
+        score = float(r.content.strip())
+    except:
+        score = 0.5
+    return {"key": "correctness", "score": min(1.0, max(0.0, score))}
+
+if __name__ == "__main__":
+    # Test traced pipeline
+    answer = rag_answer("What is LangGraph?")
+    print(f"Answer: {answer[:100]}")
+    print("-> Check smith.langchain.com for the trace!\n")
+
+    # Run evaluation
+    dataset_name = get_or_create_dataset("week10-rag-eval")
+    results = evaluate(
+        lambda inputs: {"output": rag_answer(inputs["question"])},
+        data=dataset_name,
+        evaluators=[correctness_evaluator],
+        experiment_prefix="week10-baseline",
+        max_concurrency=1
+    )
+    print(f"Evaluation complete — see results at smith.langchain.com/datasets")
+```
+
+### Task 5: Langfuse Tracing (45 min)
+
+```bash
+# Self-hosted setup
+git clone https://github.com/langfuse/langfuse && cd langfuse
+cp .env.langfuse.example .env
+# Edit .env: set NEXTAUTH_SECRET and SALT to random strings
+docker compose up -d
+# Create API keys at http://localhost:3000 -> Settings -> API Keys
+
+pip install langfuse
+export LANGFUSE_PUBLIC_KEY=pk-lf-...
+export LANGFUSE_SECRET_KEY=sk-lf-...
+export LANGFUSE_HOST=http://localhost:3000
+```
+
+```python
+# langfuse_tracing.py
+from langfuse import Langfuse
+from langfuse.decorators import observe, langfuse_context
+from langfuse.callback import CallbackHandler
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
+from langgraph.graph import StateGraph, START, END
+from typing import TypedDict, Annotated
+import operator
+
+langfuse = Langfuse()
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+# ---- Style 1: @observe decorator ----
+@observe(name="retrieval")
+def retrieve_docs(query: str) -> list[str]:
+    return [f"Document 1 about {query}", f"Document 2 about {query}"]
+
+@observe(name="generate_answer")
+def generate(question: str, docs: list[str]) -> str:
+    context = "\n".join(docs)
+    r = llm.invoke([HumanMessage(f"Context: {context}\n\nQ: {question}")])
+    langfuse_context.update_current_observation(
+        input=question,
+        output=r.content,
+        metadata={"doc_count": len(docs)}
+    )
+    return r.content
+
+@observe(name="rag_pipeline")
+def rag_with_score(question: str) -> str:
+    docs = retrieve_docs(question)
+    answer = generate(question, docs)
+    # Score the root trace
+    langfuse_context.score_current_trace(name="relevance", value=0.85, comment="heuristic")
+    return answer
+
+# ---- Style 2: LangGraph + CallbackHandler ----
+class AgentState(TypedDict):
+    messages: Annotated[list, operator.add]
+
+def call_model(state: AgentState) -> dict:
+    r = llm.invoke(state["messages"])
+    return {"messages": [r]}
+
+builder = StateGraph(AgentState)
+builder.add_node("agent", call_model)
+builder.add_edge(START, "agent")
+builder.add_edge("agent", END)
+agent_app = builder.compile()
+
+def run_agent_traced(question: str):
+    handler = CallbackHandler()  # reads env vars
+    result = agent_app.invoke(
+        {"messages": [HumanMessage(question)]},
+        config={"callbacks": [handler]}
+    )
+    langfuse.score(
+        trace_id=handler.get_trace_id(),
+        name="helpfulness",
+        value=1.0,
+        comment="manual test score"
+    )
+    return result
+
+if __name__ == "__main__":
+    print("Testing @observe style...")
+    answer = rag_with_score("Explain checkpointing in LangGraph")
+    print(f"Answer: {answer[:100]}")
+
+    print("\nTesting LangGraph + callback style...")
+    result = run_agent_traced("What is Langfuse?")
+    print(f"Agent: {result['messages'][-1].content[:100]}")
+
+    langfuse.flush()
+    print("\n-> Check http://localhost:3000 for traces!")
+```
+
+### Task 6: Langfuse Evaluation Datasets (45 min)
+
+```python
+# langfuse_eval.py
+from langfuse import Langfuse
+from langfuse.decorators import observe
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
+
+langfuse = Langfuse()
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+def setup_dataset(name: str):
+    try:
+        return langfuse.get_dataset(name)
+    except Exception:
+        ds = langfuse.create_dataset(name, description="LangGraph QA pairs")
+        items = [
+            ("What is a StateGraph?",
+             "A StateGraph is a directed graph in LangGraph where nodes receive and return typed state"),
+            ("What is a reducer in LangGraph?",
+             "A reducer merges node output into existing state, declared via Annotated type hints"),
+            ("What does interrupt() do?",
+             "interrupt() pauses graph execution at a node boundary, waiting for human input via update_state()"),
+        ]
+        for q, a in items:
+            langfuse.create_dataset_item(dataset_name=name, input={"question": q}, expected_output={"answer": a})
+        print(f"Created dataset '{name}' with {len(items)} items")
+        return langfuse.get_dataset(name)
+
+@observe()
+def answer_question(question: str) -> str:
+    r = llm.invoke([HumanMessage(question)])
+    return r.content
+
+def run_evaluation(dataset, experiment_name: str):
+    for item in dataset.items:
+        q = item.input["question"]
+        expected = item.expected_output["answer"]
+
+        with item.observe(run_name=experiment_name) as handler:
+            answer = answer_question(q)
+
+            # LLM-as-judge score
+            judge_r = llm.invoke([HumanMessage(
+                f"Rate 0.0-1.0 how well this captures the key idea.\n"
+                f"Expected: {expected}\nGot: {answer}\nReply with a float only."
+            )])
+            try:
+                score = float(judge_r.content.strip())
+            except:
+                score = 0.5
+
+            langfuse.score(
+                trace_id=handler.get_trace_id(),
+                name="semantic_match",
+                value=min(1.0, max(0.0, score))
+            )
+            print(f"  Q: {q[:50]}... | Score: {score:.2f}")
+
+if __name__ == "__main__":
+    dataset = setup_dataset("week10-langgraph-qa")
+    print("\nRunning evaluation...")
+    run_evaluation(dataset, "gpt-4o-mini-baseline")
+    langfuse.flush()
+    print("\n-> Check Langfuse > Datasets for scores!")
+```
+
+### Task 7: Dual Tracing — LangSmith + Langfuse Simultaneously (30 min)
+
+```python
+# dual_tracing.py
+"""Both platforms trace the same LangGraph run at once."""
+from langfuse.callback import CallbackHandler as LangfuseHandler
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+from langgraph.graph import StateGraph, MessagesState, START, END
+from langgraph.prebuilt import ToolNode
+from langfuse import Langfuse
+
+# LangSmith traces via env var LANGCHAIN_TRACING_V2=true (automatic)
+# Langfuse traces via explicit callback
+langfuse_handler = LangfuseHandler()
+langfuse = Langfuse()
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+@tool
+def count_words(text: str) -> int:
+    """Count the number of words in text."""
+    return len(text.split())
+
+@tool
+def reverse_text(text: str) -> str:
+    """Reverse a string character by character."""
+    return text[::-1]
+
+tools = [count_words, reverse_text]
+llm_with_tools = llm.bind_tools(tools)
+
+def agent_node(state: MessagesState) -> dict:
+    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+
+def should_continue(state: MessagesState):
+    return "tools" if state["messages"][-1].tool_calls else END
+
+builder = StateGraph(MessagesState)
+builder.add_node("agent", agent_node)
+builder.add_node("tools", ToolNode(tools))
+builder.add_edge(START, "agent")
+builder.add_conditional_edges("agent", should_continue)
+builder.add_edge("tools", "agent")
+app = builder.compile()
+
+if __name__ == "__main__":
+    question = "How many words are in 'Hello world from LangGraph'? Then reverse that phrase."
+    result = app.invoke(
+        {"messages": [HumanMessage(question)]},
+        config={"callbacks": [langfuse_handler]}  # LangSmith is auto
+    )
+
+    for msg in result["messages"]:
+        label = type(msg).__name__
+        content = msg.content or str(msg.tool_calls)
+        print(f"[{label}]: {str(content)[:80]}")
+
+    langfuse_handler.langfuse.flush()
+    print("\n-> Check smith.langchain.com AND your Langfuse dashboard")
+```
 
 ---
 
 ## Knowledge Checklist
 
-- [ ] I understand the difference between tools and agents
-- [ ] I can implement the ReAct pattern
-- [ ] I can build agents with memory
-- [ ] I understand plan-and-execute architecture
-- [ ] I can handle errors and retries
-- [ ] I can decompose complex tasks
+- [ ] I can build chaining, routing, and evaluator-optimizer patterns in LangGraph
+- [ ] I can add checkpointing and inspect state history with `get_state_history()`
+- [ ] I can implement human-in-the-loop with `interrupt()` and `update_state()`
+- [ ] LangSmith is set up and I can see my agent traces in the dashboard
+- [ ] I can create evaluation datasets and run LLM-as-judge in LangSmith
+- [ ] Langfuse is running (cloud or self-hosted) and I can see traces
+- [ ] I can use both `@observe` and `CallbackHandler` with Langfuse
+- [ ] I can attach scores to traces in Langfuse and run dataset evaluations
+- [ ] I understand when to choose LangSmith vs Langfuse vs custom logging
 
 ---
 
 ## Deliverables
 
-1. `react_agent.py` — Basic ReAct implementation
-2. `memory_agent.py` — Agent with working memory
-3. `plan_agent.py` — Plan-and-execute pattern
-4. `robust_agent.py` — Error handling
-5. `task_executor.py` — Multi-step execution
+1. `langgraph_patterns.py` — Chaining and routing workflows
+2. `evaluator_optimizer.py` — Quality loop with checkpointing
+3. `human_in_loop.py` — Human approval workflow
+4. `langsmith_tracing.py` — LangSmith traces + evaluation dataset
+5. `langfuse_tracing.py` — Langfuse `@observe` + `CallbackHandler`
+6. `langfuse_eval.py` — Langfuse dataset evaluation + scoring
+7. `dual_tracing.py` — Simultaneous LangSmith + Langfuse
 
 ---
 
 ## What's Next?
 
-Next week: **Agent Frameworks** — LangGraph and CrewAI for building sophisticated agent systems!
+Next week: **Agent Frameworks + Multi-Modal AI** — advanced LangGraph patterns (orchestrator-worker, deep agents, multi-agent with CrewAI) and Vision/Audio APIs!
 
 ---
 
 ## Resources
 
-- [ReAct Paper](https://arxiv.org/abs/2210.03629)
-- [Building Agents](https://www.deeplearning.ai/short-courses/building-agentic-rag-with-llamaindex/)
+- [LangGraph Docs](https://langchain-ai.github.io/langgraph/)
+- [LangGraph Checkpointing](https://langchain-ai.github.io/langgraph/concepts/persistence/)
+- [LangSmith Docs](https://docs.smith.langchain.com/)
+- [LangSmith Evaluation Guide](https://docs.smith.langchain.com/evaluation)
+- [Langfuse Docs](https://langfuse.com/docs)
+- [Langfuse Self-Hosting](https://langfuse.com/docs/deployment/self-host)
+- [Langfuse LangChain Integration](https://langfuse.com/docs/integrations/langchain)

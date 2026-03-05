@@ -1,34 +1,44 @@
 # Portfolio Project #2: AI Agent
 
-**Weeks 9-12 Milestone Project**
+**Week 11 Milestone** | Combines skills from Weeks 7-11
 
-Build an AI agent that can use tools, reason through multi-step problems, and take actions.
+Build an AI agent that uses tools, reasons through multi-step problems, and logs its behavior for observability.
 
 ---
 
 ## Requirements
 
-### Core Features
-- [ ] Tool definitions (3+ tools minimum)
-- [ ] Tool execution loop
+### Core Features (Weeks 7-8)
+- [ ] Tool definitions — 3+ tools with JSON Schema
+- [ ] Tool execution loop with result handling
 - [ ] ReAct-style reasoning (Thought → Action → Observation)
 - [ ] Multi-step task completion
 - [ ] Conversation memory
 
-### Suggested Tools
-Pick 3+ from:
-- Web search (via API)
-- Calculator
-- File reader/writer
-- Database query
-- API calls (weather, stocks, etc.)
-- Code execution
+### Agent Quality (Week 9-10)
+- [ ] LangGraph state machine OR custom ReAct loop
+- [ ] Checkpointing / session persistence
+- [ ] Structured logging of every agent step
+- [ ] Observable traces (LangSmith or Langfuse)
+
+### Data Engineering (Week 11)
+- [ ] SQL logging of agent runs (queries, tool calls, outcomes)
+- [ ] Data quality checks on tool inputs/outputs
+- [ ] Pipeline for processing any documents the agent needs
 
 ### Production Quality
-- [ ] Tool error handling
-- [ ] Max iterations limit
+- [ ] Tool error handling with fallbacks
+- [ ] Max iterations limit (prevent infinite loops)
 - [ ] Timeout handling
-- [ ] Logging of agent steps
+- [ ] Step-by-step logging
+
+### Suggested Tools (pick 3+)
+- Web search (SerpAPI, Tavily, or DuckDuckGo)
+- Calculator / code execution
+- File reader/writer
+- Database query
+- Weather or other external API
+- RAG search over documents
 
 ---
 
@@ -37,18 +47,18 @@ Pick 3+ from:
 ```
 02_ai_agent/
 ├── README.md
-├── requirements.txt
-├── .env
+├── .env.example
 ├── src/
 │   ├── __init__.py
-│   ├── agent.py          # Main agent loop
+│   ├── agent.py            # Main agent loop (ReAct or LangGraph)
 │   ├── tools/
 │   │   ├── __init__.py
 │   │   ├── search.py
 │   │   ├── calculator.py
 │   │   └── file_ops.py
-│   ├── memory.py         # Conversation history
-│   └── main.py           # Entry point
+│   ├── memory.py           # Conversation history
+│   ├── logger.py           # Step logging and SQL storage
+│   └── main.py             # Entry point
 ├── tests/
 │   └── test_agent.py
 └── notebooks/
@@ -60,17 +70,30 @@ Pick 3+ from:
 ## Getting Started
 
 ```bash
-# 1. Setup
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# 1. Install dependencies
+uv sync
 
 # 2. Configure
 cp .env.example .env
-# Add API keys
+# Add OPENAI_API_KEY (or AI_PROVIDER=ollama)
+# Add tool API keys as needed
 
 # 3. Run agent
-python src/main.py "Research the weather in Paris and convert the temperature to Fahrenheit"
+uv run python src/main.py "Research the latest Python version and calculate the years since Python 2.0"
+```
+
+---
+
+## Model Options
+
+| Task | OpenAI | Ollama |
+|------|--------|--------|
+| Agent reasoning | `gpt-4o-mini` | `deepseek-r1:7b` (strong reasoning) |
+| Tool calls | `gpt-4o-mini` | `llama3.1:8b` |
+
+```bash
+ollama pull deepseek-r1:7b
+export AI_PROVIDER=ollama
 ```
 
 ---
@@ -88,17 +111,16 @@ Agent Thought: The tip is $7.125, I should round it
 Agent Action: calculator({"expression": "round(7.125, 2)"})
 Observation: 7.13
 
-Agent Response: A 15% tip on $47.50 would be $7.13, 
-               making your total $54.63.
+Agent Response: A 15% tip on $47.50 would be $7.13, making your total $54.63.
 ```
 
 ---
 
 ## Interview Talking Points
 
-1. **ReAct pattern** - Explain Thought → Action → Observation cycle
-2. **Tool design** - How did you define tool schemas?
-3. **Error handling** - What happens when a tool fails?
-4. **Infinite loops** - How do you prevent them?
-5. **Observability** - How do you debug agent behavior?
-6. **Autonomy vs Control** - How much freedom should the agent have?
+1. **ReAct pattern** — Explain the Thought → Action → Observation cycle
+2. **Tool design** — How did you define tool schemas? What makes a good tool?
+3. **Error handling** — What happens when a tool fails or returns unexpected data?
+4. **Infinite loops** — How do you prevent them? What's your max iterations strategy?
+5. **Observability** — How do you debug agent behavior? What do your traces look like?
+6. **LangGraph vs custom** — Why did you choose your agent architecture?
