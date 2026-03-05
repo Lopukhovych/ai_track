@@ -1,94 +1,171 @@
-# AI Engineering Track v2
+# AI Engineering Track
 
-**A 16-week curriculum for complete beginners to become job-ready AI Engineers.**
+**A 15-week curriculum to become a job-ready AI Engineer.**
 
-No prior AI/ML experience required. You'll build one project that evolves from a simple chatbot to a production-ready AI application.
+No prior AI/ML experience required. You start from your first API call and end with a production-ready application and 3 portfolio projects.
 
 ---
 
 ## Your Journey
 
 ```
-Week 1:     "I can talk to AI, build a chatbot, and get structured output"
-Week 4-8:   "My AI answers from my documents and I can measure its quality"
-Week 9-12:  "My AI can take actions and work autonomously"
-Week 13-16: "My AI system is production-ready and I can get hired"
+Week 1:      "I can call LLM APIs, build a chatbot, and get structured output"
+Weeks 2-4:   "My AI answers questions from my own documents (RAG)"
+Weeks 5-6:   "I can measure quality and protect my system from attacks"
+Weeks 7-11:  "My AI can reason, take actions, and use tools autonomously"
+Weeks 12-15: "My AI system is production-ready and I'm interview-ready"
 ```
 
 ---
 
 ## Curriculum Overview
 
-### Month 1: First Steps (Build a Working Chatbot)
+See [agenda/00_summary.md](agenda/00_summary.md) for the complete roadmap with priorities and interview relevance.
+
+### Month 1: First Steps
 
 | Week | Topic | What You'll Build |
 |------|-------|-------------------|
-| [Week 1](agenda/week_01.md) | API Basics, Chatbot & Structured Output | First API call, memory chatbot, JSON output |
-| [Week 4](agenda/week_02.md) | Connect to Your Data | Chatbot that answers from your documents |
+| [Week 1](agenda/week_01.md) | API Basics, Chatbot & Structured Output | First API call, chatbot with memory, validated JSON output |
+| [Week 2](agenda/week_02.md) | RAG Introduction | Document Q&A — your chatbot answers from your own files |
+| [Week 3](agenda/week_03.md) | Embeddings Deep Dive | Semantic search pipeline, embedding model comparison |
+| [Week 4](agenda/week_04.md) | Production RAG Architecture | Full RAG with Qdrant, citations, hybrid search |
 
-**Milestone:** Personal Q&A chatbot over your own documents
-
-### Month 2: Quality & Safety (Make It Reliable)
-
-| Week | Topic | What You'll Build |
-|------|-------|-------------------|
-| [Week 5](agenda/week_03.md) | Embeddings Deep Dive | Full document ingestion pipeline |
-| [Week 6](agenda/week_04.md) | RAG Architecture | Production RAG with citations |
-| [Week 7](agenda/week_05.md) | Evaluations & Metrics | Test suite proving your system works |
-| [Week 8](agenda/week_06.md) | Security & Guardrails | Protected against attacks |
-
-**Milestone:** Portfolio Project #1 — Production RAG Q&A System
-
-### Month 3: Intelligence (Make It Smart)
+### Month 2: Quality & Safety
 
 | Week | Topic | What You'll Build |
 |------|-------|-------------------|
-| [Week 9](agenda/week_07.md) | Tool Calling & Actions | AI that can search, calculate, act |
-| [Week 10](agenda/week_08.md) | Agent Fundamentals | Multi-step reasoning agent |
-| [Week 11](agenda/week_09.md) | Agent Frameworks + Multi-Modal | LangGraph, CrewAI + Vision/Audio (optional) |
-| [Week 12](agenda/week_11.md) | Data Engineering for AI | SQL, pipelines, data quality |
+| [Week 5](agenda/week_05.md) | Evaluations & Quality Metrics | Test suite, retrieval/generation metrics, LLM-as-judge |
+| [Week 6](agenda/week_06.md) | Security & Guardrails | Input validation, PII protection, red-team tests — **Portfolio #1** |
 
-**Milestone:** Portfolio Project #2 — AI Agent System
+**Portfolio #1:** [Secure HR Q&A Bot](projects/01_rag_qa_system/) — RAG + security guardrails + evaluations
 
-### Month 4: Production & Career (Go Pro)
+### Month 3: Intelligence
 
 | Week | Topic | What You'll Build |
 |------|-------|-------------------|
-| [Week 13](agenda/week_12.md) | MCP & Observability | Tracing and monitoring |
-| [Week 14](agenda/week_13.md) | Production Hardening | Cost control, caching, reliability |
-| [Week 15](agenda/week_14.md) | Deployment & Fine-Tuning | Deploy to cloud, optional fine-tuning |
-| [Week 16](agenda/week_15.md) | Capstone & Interview Prep | Final project + interview readiness |
+| [Week 7](agenda/week_07.md) | Agent Fundamentals (ReAct) | Custom ReAct agent, multi-step problem solver |
+| [Week 8](agenda/week_08.md) | Tool Calling & Function Execution | AI that calls multiple tools, full tool loop |
+| [Week 9](agenda/week_09.md) | Agent Frameworks — LangGraph & Multi-Modal | LangGraph workflows, CrewAI, vision/audio (optional) |
+| [Week 10](agenda/week_10.md) | LangGraph in Practice + LangSmith & Langfuse | Observable, evaluatable agents with tracing |
+| [Week 11](agenda/week_11.md) | Data Engineering for AI | SQL, ETL pipelines, data quality — **Portfolio #2** |
 
-**Milestone:** Portfolio Project #3 — Production Capstone + Interview Ready
+**Portfolio #2:** [AI Agent](projects/02_ai_agent/) — ReAct reasoning + tools + step logging + data pipeline
+
+### Month 4: Production & Career
+
+| Week | Topic | What You'll Build |
+|------|-------|-------------------|
+| [Week 12](agenda/week_12.md) | MCP & Observability | MCP server, logging, tracing, metrics dashboard |
+| [Week 13](agenda/week_13.md) | Production Hardening | Rate limiting, caching, retries, RBAC, secrets management |
+| [Week 14](agenda/week_14.md) | Deployment & Fine-Tuning | Docker, cloud deployment, Slack/Teams bot |
+| [Week 15](agenda/week_15.md) | Capstone & Interview Prep | Final project + interview readiness — **Portfolio #3** |
+
+**Portfolio #3:** [Full-Stack AI Research Assistant](projects/03_capstone/) — FastAPI + RAG + agents + Docker
 
 ---
 
-## The Project You'll Build
+## Setup
 
-Throughout this course, you build **one evolving project**:
+```bash
+# Install dependencies (uses uv)
+uv sync
+
+# Copy and fill in your API keys
+cp .env.example .env
+
+# Start Jupyter Lab
+uv run jupyter lab
+```
+
+### Environment Variables (`.env`)
 
 ```
-Week 1:     Simple chatbot with memory + structured responses (JSON)
-Week 4:     + Document Q&A (basic RAG)
-Week 5-6:   + Full RAG pipeline with citations
-Week 7:     + Quality metrics and tests
-Week 8:     + Security guardrails
-Week 9-10:  + Tool calling and actions
-Week 11:    + Multi-agent workflows
-Week 12:    + Image/audio understanding
-Week 13:    + Observability
-Week 14:    + Production reliability
-Week 15:    + Cloud deployment
-Week 16:    + Polish for portfolio
+OPENAI_API_KEY=sk-...
+
+# Optional — use local Ollama models instead of OpenAI
+AI_PROVIDER=ollama          # "openai" (default) or "ollama"
+OLLAMA_BASE_URL=http://localhost:11434
 ```
+
+### Using Local Models (Free, No API Key)
+
+All weeks support [Ollama](https://ollama.com) as a free alternative to OpenAI:
+
+```bash
+# Install Ollama, then pull models as needed
+ollama pull llama3.1:8b          # General chat
+ollama pull nomic-embed-text     # Embeddings
+ollama pull deepseek-r1:7b       # ReAct agent reasoning
+
+# Switch provider
+export AI_PROVIDER=ollama
+```
+
+The unified client in `scripts/model_config.py` handles provider switching automatically.
 
 ---
 
-## Time Commitment
+## Labs (Hands-On Practice)
 
-- **Per week:** 6-8 hours
-- **Total:** ~100-130 hours over 4 months
-- **Schedule:** Theory (2h) + Hands-on (4-6h)
+Each week has a companion Jupyter notebook in [labs/](labs/):
+
+| Lab | Topic |
+|-----|-------|
+| [week_00_getting_started.ipynb](labs/week_00_getting_started.ipynb) | Environment setup verification |
+| [week_01_first_api_call.ipynb](labs/week_01_first_api_call.ipynb) | API basics, chatbot, structured output |
+| [week_02_rag_intro.ipynb](labs/week_02_rag_intro.ipynb) | RAG pipeline introduction |
+| [week_03_embeddings.ipynb](labs/week_03_embeddings.ipynb) | Embeddings and semantic search |
+| [week_04_production_rag.ipynb](labs/week_04_production_rag.ipynb) | Production RAG with Qdrant |
+| [week_05_evaluations.ipynb](labs/week_05_evaluations.ipynb) | Evaluations and quality metrics |
+| [week_06_security.ipynb](labs/week_06_security.ipynb) | Security and guardrails |
+| [week_07_agents.ipynb](labs/week_07_agents.ipynb) | Agent fundamentals (ReAct) |
+| [week_08_tool_calling.ipynb](labs/week_08_tool_calling.ipynb) | Tool calling and function execution |
+| [week_09_frameworks.ipynb](labs/week_09_frameworks.ipynb) | LangGraph and agent frameworks |
+| [week_10_frameworks_observability.ipynb](labs/week_10_frameworks_observability.ipynb) | LangSmith and Langfuse |
+| [week_11_data_engineering.ipynb](labs/week_11_data_engineering.ipynb) | SQL, ETL pipelines, data quality |
+| [week_12_mcp.ipynb](labs/week_12_mcp.ipynb) | MCP and observability |
+| [week_13_production.ipynb](labs/week_13_production.ipynb) | Production hardening |
+| [week_14_deployment.ipynb](labs/week_14_deployment.ipynb) | Deployment and fine-tuning |
+| [week_15_capstone.ipynb](labs/week_15_capstone.ipynb) | Capstone and interview prep |
+
+### How Labs Work
+
+1. Read the agenda first: `agenda/week_XX.md`
+2. Open the lab notebook: `labs/week_XX_*.ipynb`
+3. Try each exercise yourself — hints and solutions are collapsible inside the notebook
+
+---
+
+## Portfolio Projects
+
+| # | Project | Week | Skills Demonstrated |
+|---|---------|------|---------------------|
+| 1 | [Secure HR Q&A Bot](projects/01_rag_qa_system/) | 6 | RAG, embeddings, security, evaluations |
+| 2 | [AI Agent](projects/02_ai_agent/) | 11 | Tool calling, ReAct, observability, data pipelines |
+| 3 | [Full-Stack AI Research Assistant](projects/03_capstone/) | 15 | All of the above + FastAPI + Docker |
+
+---
+
+## Repository Structure
+
+```
+ai_track/
+├── agenda/              # Week-by-week guides with theory and tasks
+│   ├── 00_summary.md    # Full curriculum overview and roadmap
+│   └── week_01.md ... week_15.md
+├── labs/                # Jupyter notebook exercises (one per week)
+│   └── week_00_getting_started.ipynb ... week_15_capstone.ipynb
+├── projects/            # Portfolio project templates
+│   ├── 01_rag_qa_system/   # Portfolio #1: Secure HR Q&A Bot
+│   ├── 02_ai_agent/        # Portfolio #2: AI Agent
+│   └── 03_capstone/        # Portfolio #3: Full-Stack Research Assistant
+├── scripts/
+│   └── model_config.py  # Unified OpenAI/Ollama client
+├── knowledges.md        # Quick-reference cheat sheet for all concepts
+├── pyproject.toml       # Dependencies (managed with uv)
+└── uv.lock
+```
 
 ---
 
@@ -96,112 +173,12 @@ Week 16:    + Polish for portfolio
 
 - Basic Python (variables, functions, loops, classes)
 - Command line basics
-- **No AI/ML experience needed**
-
----
-
-## What You'll Learn
-
-### Technical Skills
-- LLM APIs (OpenAI, Anthropic, Google, local models)
-- Prompt engineering and structured output
-- Embeddings and vector databases
-- RAG (Retrieval-Augmented Generation)
-- Tool calling and function execution
-- Agent design patterns
-- Frameworks: LangGraph, CrewAI
-- MCP (Model Context Protocol)
-- Production: deployment, monitoring, cost control
-
-### Interview Topics
-- System design for AI applications
-- RAG architecture decisions
-- Agent patterns and trade-offs
-- Production reliability
-- Cost optimization
-
----
-
-## Portfolio Projects
-
-By course end, you'll have 3 portfolio projects:
-
-1. **RAG Q&A System** (Week 8)
-   - Document ingestion, search, generation
-   - Evaluations and guardrails
-
-2. **AI Agent** (Week 12)
-   - Tool calling and reasoning
-   - ReAct pattern implementation
-
-3. **Production Capstone** (Week 16)
-   - Full-stack deployed application
-   - Monitoring and observability
-
----
-
-## Labs (Hands-On Practice)
-
-Each week has a companion **Jupyter notebook** in the [labs/](labs/) folder:
-
-| Week | Lab |
-|------|-----|
-| 0 | [Getting Started](labs/week_00_getting_started.ipynb) — Setup verification |
-| 1 | [week_01_first_api_call.ipynb](labs/week_01_first_api_call.ipynb) — API basics, chatbot, structured output |
-| 4-16 | `week_XX_*.ipynb` — Exercises for each week |
-
-### How Labs Work
-
-1. **Read the agenda** first (`agenda/week_XX.md`)
-2. **Open the lab notebook** (`labs/week_XX_*.ipynb`)
-3. **Try the exercises** yourself
-4. **Use hints** if you get stuck (click to expand)
-5. **Check solutions** to verify or follow along
-
-### Exercise Format
-
-Each exercise has collapsible **hints** and **solutions**:
-
-```
-[Exercise code cell]
-
-<details>
-<summary>💡 Hint</summary>
-Helpful nudge without giving away the answer
-</details>
-
-<details>
-<summary>✅ Solution</summary>
-Complete working code
-</details>
-```
-
-💡 **Tip:** Try solving exercises yourself first! Use hints and solutions as a fallback.
-
-### 🎯 Optional Challenges
-
-Each week's agenda includes **Optional Challenges** (marked with 🎯) — advanced problems for those who want extra practice:
-
-- **No solutions provided** — figure it out yourself!
-- **Real-world scenarios** — the kind you'll face in production
-- **Interview-level** — similar to take-home assignments
-
-Challenges are available in: Weeks 4, 5, 6, 7, 8, 9, 10, 14 (the most critical topics)
+- No AI/ML experience needed
 
 ---
 
 ## Resources
 
-- [knowledges.md](knowledges.md) — Quick reference for all concepts
-- Each week links to relevant documentation and tutorials
-
----
-
-## Getting Started
-
-1. Read [Week 1](agenda/week_01.md)
-2. Set up your environment
-3. Make your first API call
-4. Build from there!
-
-**No prior AI knowledge needed. Start from zero, end interview-ready.**
+- [agenda/00_summary.md](agenda/00_summary.md) — Full roadmap with priorities and interview relevance
+- [knowledges.md](knowledges.md) — Concept quick-reference cheat sheet
+- Each week's agenda includes links to relevant docs and tutorials
