@@ -6,7 +6,7 @@
 
 ## Overview
 
-Building agents from scratch is educational, but production systems need **orchestration frameworks**. This week you'll get a deep dive into **LangGraph** — the industry standard for stateful agent workflows — covering its core architecture, all major workflow patterns, checkpointing, human-in-the-loop, and memory. You'll also learn **CrewAI** for multi-agent collaboration and explore **Vision/Audio** APIs for multi-modal applications.
+Building agents from scratch is educational, but production systems need **orchestration frameworks**. This week you'll get a deep dive into **LangGraph** — the industry standard for stateful agent workflows — covering its core architecture, all major workflow patterns, checkpointing, human-in-the-loop, and memory. You'll also learn **Strands Agents** for multi-agent collaboration and explore **Vision/Audio** APIs for multi-modal applications.
 
 ---
 
@@ -19,7 +19,7 @@ By the end of this week, you will:
 - Implement checkpointing and durable execution
 - Build human-in-the-loop workflows
 - Use short-term and long-term memory in LangGraph
-- Create multi-agent teams with CrewAI
+- Build multi-agent systems with all 5 Strands Agents patterns (Tools, Swarm, Graph, Workflow, A2A)
 - Work with Vision and Audio APIs for multi-modal AI
 
 ---
@@ -296,46 +296,263 @@ def personalized_node(state, store):
 
 ---
 
-### 7. CrewAI Overview (20 min)
+### 7. Strands Agents — Multi-Agent Patterns (60 min)
 
-CrewAI = role-based multi-agent teams. Higher abstraction than LangGraph — less control, faster to set up.
+Strands Agents is a lightweight, code-first multi-agent framework. It ships four distinct multi-agent patterns — each suited to different coordination styles.
 
-**Key concepts:**
-- **Agent** — has a role, goal, backstory, and optional tools
-- **Task** — what an agent should do; can depend on other tasks
-- **Crew** — collection of agents + tasks + a process
-- **Process** — `sequential` (linear) or `hierarchical` (manager delegates)
-
-**When to choose CrewAI over LangGraph:**
-- You want agents that feel like a team with distinct roles
-- Your task maps naturally to research → review → write pipelines
-- You don't need fine-grained control flow
-
----
-
-### 8. Deep Agents Pattern (20 min)
-
-For complex, long-horizon tasks, the "deep agent" pattern adds:
-- **Planning** — task decomposition before execution
-- **Context isolation** — virtual filesystem to avoid context overflow
-- **Subagent delegation** — spawn specialized agents for subtasks
-- **Persistent memory** — cross-conversation Memory Store
-
-```python
-from deepagents import create_deep_agent
-
-agent = create_deep_agent(
-    tools=[your_tool],
-    system_prompt="You are a research agent. Break tasks into steps."
-)
-result = agent.invoke({"messages": [{"role": "user", "content": "Research X"}]})
+**Install:**
+```bash
+pip install strands-agents strands-agents-tools
+pip install 'strands-agents[a2a]'          # for A2A pattern
+pip install 'strands-agents-tools[a2a_client]'  # for A2A client tool
 ```
 
-Use deep agent patterns when: single agent context fills up, tasks require 10+ steps, or you need specialized subtask handling.
+---
+
+#### 7a. Agents as Tools
+
+Wrap specialized sub-agents as `@tool` functions. An orchestrator `Agent` decides which specialist to call and in what order.
+
+**Key classes:** `Agent`, `@tool`
+
+```python
+from strands import Agent, tool
+
+@tool
+def researcher(query: str) -> str:
+    """Research a topic and return detailed findings."""
+    agent = Agent(system_prompt="You are a research expert. Find accurate, detailed information.")
+    return str(agent(query))
+
+@tool
+def technical_writer(content: str) -> str:
+    """Turn research findings into a polished 300-word developer summary."""
+    agent = Agent(system_prompt="You are a technical writer. Be concise and clear.")
+    return str(agent(f"Summarize for developers: {content}"))
+
+orchestrator = Agent(
+    system_prompt="""Route tasks to specialists:
+1. Use 'researcher' to gather information
+2. Use 'technical_writer' to produce the final output""",
+    tools=[researcher, technical_writer]
+)
+
+result = orchestrator("Research and summarize AI agent frameworks in 2025.")
+```
+
+**Best for:** Structured pipelines (research → review → write), when task order is known upfront.
 
 ---
 
-### 9. Choosing the Right Tool (15 min)
+#### 7b. Swarm
+
+Emergent, self-organizing teams. Each agent sees full context and decides autonomously when to hand off to a specialist. No central controller.
+
+**Key class:** `Swarm`
+
+```python
+from strands import Agent
+from strands.multiagent import Swarm
+
+researcher = Agent(name="researcher",   system_prompt="You are a research specialist. Gather facts.")
+coder      = Agent(name="coder",        system_prompt="You are a coding specialist. Write clean Python.")
+reviewer   = Agent(name="reviewer",     system_prompt="You are a code reviewer. Find bugs and improvements.")
+
+swarm = Swarm(
+    [researcher, coder, reviewer],
+    entry_point=researcher,   # first agent to receive the task
+    max_handoffs=15,
+    max_iterations=15,
+    execution_timeout=300.0,
+    repetitive_handoff_detection_window=6,
+    repetitive_handoff_min_unique_agents=2
+)
+
+result = swarm("Design and implement a Python function to parse ISO timestamps.")
+print(f"Status: {result.status}")
+print(f"Agent sequence: {[n.node_id for n in result.node_history]}")
+```
+
+Agents coordinate via the built-in `handoff_to_agent` tool — they call it when they decide another specialist is better suited.
+
+**Best for:** Open-ended tasks where the path isn't known upfront; autonomous collaboration.
+
+---
+
+#### 7c. Graph
+
+Deterministic directed graph — you define nodes (agents) and edges (dependencies). Independent branches run in parallel. Supports cyclic graphs (feedback loops).
+
+**Key classes:** `GraphBuilder`
+
+```python
+from strands import Agent
+from strands.multiagent import GraphBuilder
+
+researcher = Agent(name="researcher", system_prompt="Research the given topic.", callback_handler=None)
+analyst    = Agent(name="analyst",    system_prompt="Analyze the research findings.", callback_handler=None)
+writer     = Agent(name="writer",     system_prompt="Write a polished report.")
+
+builder = GraphBuilder()
+builder.add_node(researcher, "research")
+builder.add_node(analyst,    "analysis")
+builder.add_node(writer,     "report")
+
+builder.add_edge("research", "analysis")
+builder.add_edge("analysis", "report")
+
+builder.set_entry_point("research")
+builder.set_execution_timeout(120)
+graph = builder.build()
+
+result = graph("Analyze the impact of LLMs on software development.")
+print(result.results["report"].result)
+```
+
+**Conditional edges** — only traverse if a condition is met:
+
+```python
+def quality_passed(state):
+    review = str(state.results.get("reviewer", {}).result or "")
+    return "approved" in review.lower()
+
+builder.add_edge("reviewer", "publisher", condition=quality_passed)
+builder.add_edge("reviewer", "writer",    condition=lambda s: not quality_passed(s))
+builder.set_max_node_executions(8)   # cap cycles
+builder.reset_on_revisit(True)       # reset node state on re-entry
+```
+
+**Parallel branches** — add edges from one node to multiple targets; they execute concurrently:
+
+```python
+builder.add_edge("coordinator", "worker_a")
+builder.add_edge("coordinator", "worker_b")
+builder.add_edge("coordinator", "worker_c")
+builder.add_edge("worker_a",   "aggregator")
+builder.add_edge("worker_b",   "aggregator")
+builder.add_edge("worker_c",   "aggregator")
+```
+
+**Best for:** Complex pipelines with known structure, parallel processing, quality-gated feedback loops.
+
+---
+
+#### 7d. Workflow
+
+Task-based coordination with explicit dependency management. Uses the built-in `workflow` tool from `strands_tools`.
+
+**Key tool:** `strands_tools.workflow`
+
+```python
+from strands import Agent
+from strands_tools import workflow
+
+agent = Agent(tools=[workflow])
+
+# Define workflow with dependencies
+agent.tool.workflow(
+    action="create",
+    workflow_id="market_analysis",
+    tasks=[
+        {
+            "task_id": "data_collection",
+            "description": "Collect market data for Q1 2025",
+            "system_prompt": "You extract and structure market data.",
+            "priority": 5
+        },
+        {
+            "task_id": "trend_analysis",
+            "description": "Analyze trends in the collected data",
+            "dependencies": ["data_collection"],   # runs after data_collection
+            "system_prompt": "You identify trends in market data.",
+            "priority": 3
+        },
+        {
+            "task_id": "report",
+            "description": "Write a 1-page executive summary",
+            "dependencies": ["trend_analysis"],
+            "system_prompt": "You write clear executive summaries.",
+            "priority": 2
+        }
+    ]
+)
+
+agent.tool.workflow(action="start",  workflow_id="market_analysis")
+status = agent.tool.workflow(action="status", workflow_id="market_analysis")
+print(status)
+
+# Pause and resume
+agent.tool.workflow(action="pause",  workflow_id="market_analysis")
+agent.tool.workflow(action="resume", workflow_id="market_analysis")
+```
+
+**Best for:** Long-running processes that need pause/resume, audit trails, explicit dependency control.
+
+---
+
+#### 7e. A2A (Agent-to-Agent Protocol)
+
+Open standard for agents to discover and communicate across services. Wrap a remote agent as a local `A2AAgent` — it looks identical to a local agent.
+
+**Key classes:** `A2AAgent`, `A2AServer`
+
+```python
+# --- Server side: expose any Strands agent as an A2A service ---
+from strands import Agent
+from strands_tools import calculator
+from strands.multiagent.a2a import A2AServer
+
+calc_agent = Agent(
+    name="Calculator Agent",
+    description="Performs arithmetic operations.",
+    tools=[calculator],
+    callback_handler=None
+)
+
+server = A2AServer(agent=calc_agent)
+server.serve()   # listens on http://127.0.0.1:9000
+
+# --- Client side: consume a remote agent ---
+from strands.agent.a2a_agent import A2AAgent
+
+remote_calc = A2AAgent(endpoint="http://localhost:9000")
+result = remote_calc("What is 1337 * 42?")
+print(result.message)
+
+# Use as a tool in an orchestrator
+from strands import tool
+
+@tool
+def calculate(expression: str) -> str:
+    """Perform a mathematical calculation via remote calculator agent."""
+    result = remote_calc(expression)
+    return str(result.message["content"][0]["text"])
+
+orchestrator = Agent(
+    system_prompt="You are helpful. Use calculate for all math.",
+    tools=[calculate]
+)
+```
+
+**Auto-discovery with the A2A client tool:**
+
+```python
+from strands import Agent
+from strands_tools.a2a_client import A2AClientToolProvider
+
+provider = A2AClientToolProvider(
+    known_agent_urls=["http://localhost:9000", "http://localhost:9001"]
+)
+
+agent = Agent(tools=provider.tools)
+agent("Use the available agents to answer: what is 5! and what's the weather in Paris?")
+```
+
+**Best for:** Microservice architectures, sharing specialized agents across teams, multi-provider environments.
+
+---
+
+### 8. Choosing the Right Pattern (15 min)
 
 | Situation | Recommendation |
 |-----------|----------------|
@@ -344,8 +561,11 @@ Use deep agent patterns when: single agent context fills up, tasks require 10+ s
 | Agentic loop with tools | LangGraph agent |
 | Need checkpoints / resume | LangGraph + checkpointer |
 | Human approval in the loop | LangGraph + interrupt |
-| Role-based research/writing teams | CrewAI |
-| Long-horizon complex tasks | Deep Agents pattern |
+| Structured pipeline (research→write) | Strands Agents as Tools |
+| Open-ended, self-organizing teams | Strands Swarm |
+| Parallel branches + conditional routing | Strands Graph |
+| Long-running tasks with pause/resume | Strands Workflow tool |
+| Distributed agents across services | Strands A2A |
 | Maximum control, no dependencies | Custom from scratch |
 
 ---
@@ -355,7 +575,7 @@ Use deep agent patterns when: single agent context fills up, tasks require 10+ s
 ### Task 1: Install Frameworks (10 min)
 
 ```bash
-pip install langgraph langchain-openai langchain-core crewai
+pip install langgraph langchain-openai langchain-core strands-agents strands-agents-tools
 ```
 
 ---
@@ -814,74 +1034,90 @@ if __name__ == "__main__":
 
 ---
 
-### Task 6: CrewAI — Multi-Agent Research Team (45 min)
+### Task 6: Strands Agents — Multi-Agent Research Team (45 min)
+
+Strands Agents wraps specialized sub-agents as `@tool` functions. An orchestrator agent decides which specialist to call.
 
 ```python
 # research_team.py
-from crewai import Agent, Task, Crew, Process
-from crewai.tools import tool
+from strands import Agent, tool
 from dotenv import load_dotenv
 
 load_dotenv()
 
-@tool("Web Search")
-def web_search(query: str) -> str:
-    """Search the web for information on a topic."""
-    return f"Search results for '{query}': Comprehensive findings available."
+# --- Specialist sub-agents defined as @tool functions ---
 
-# Agents with distinct roles
-researcher = Agent(
-    role="Senior Research Analyst",
-    goal="Research topics thoroughly and find accurate, relevant information",
-    backstory="Expert researcher with 10 years experience in technology analysis.",
-    tools=[web_search],
-    verbose=True
-)
+@tool
+def researcher(query: str) -> str:
+    """Research a topic thoroughly and return detailed findings.
 
-fact_checker = Agent(
-    role="Fact Checker",
-    goal="Verify claims and ensure accuracy of all information",
-    backstory="Meticulous fact-checker who questions everything and validates sources.",
-    verbose=True
-)
+    Args:
+        query: The research question or topic to investigate
+    Returns:
+        Detailed research findings with key facts
+    """
+    research_agent = Agent(
+        system_prompt="""You are a Senior Research Analyst.
+Research topics thoroughly and provide accurate, well-organized findings.
+Always include key facts, statistics, and relevant context."""
+    )
+    response = research_agent(query)
+    return str(response)
 
-writer = Agent(
-    role="Technical Writer",
-    goal="Transform research into clear, engaging content",
-    backstory="Professional writer who turns complex topics into accessible articles.",
-    verbose=True
-)
 
-# Tasks flow through the pipeline
-research_task = Task(
-    description="Research the current state of AI agent frameworks in 2024-2025. Cover: LangGraph, CrewAI, AutoGen, and their key use cases.",
-    agent=researcher,
-    expected_output="Detailed findings covering each framework's strengths and use cases"
-)
+@tool
+def fact_checker(claim: str) -> str:
+    """Verify a claim and flag anything inaccurate or unsubstantiated.
 
-verify_task = Task(
-    description="Fact-check the research findings. Flag anything that seems inaccurate or needs clarification.",
-    agent=fact_checker,
-    expected_output="Verified research with accuracy notes",
-    context=[research_task]
-)
+    Args:
+        claim: A statement or set of findings to fact-check
+    Returns:
+        Verification result with accuracy notes
+    """
+    checker_agent = Agent(
+        system_prompt="""You are a meticulous Fact Checker.
+Analyze claims critically. Flag anything that seems inaccurate,
+unsupported, or that needs clarification. Be specific."""
+    )
+    response = checker_agent(f"Fact-check this: {claim}")
+    return str(response)
 
-write_task = Task(
-    description="Write a 300-word technical summary of AI agent frameworks for a developer audience.",
-    agent=writer,
-    expected_output="A polished 300-word developer-focused summary",
-    context=[verify_task]
-)
 
-crew = Crew(
-    agents=[researcher, fact_checker, writer],
-    tasks=[research_task, verify_task, write_task],
-    process=Process.sequential,
-    verbose=True
+@tool
+def technical_writer(content: str) -> str:
+    """Transform research into a clear, engaging 300-word technical summary.
+
+    Args:
+        content: Research findings to summarize
+    Returns:
+        A polished 300-word summary for a developer audience
+    """
+    writer_agent = Agent(
+        system_prompt="""You are a Technical Writer.
+Transform complex research into clear, concise content for developers.
+Aim for ~300 words. Use plain language; avoid jargon."""
+    )
+    response = writer_agent(f"Write a 300-word developer summary of: {content}")
+    return str(response)
+
+
+# --- Orchestrator: routes tasks to the right specialist ---
+
+orchestrator = Agent(
+    system_prompt="""You are a research team orchestrator.
+For any research request, follow this pipeline:
+1. Use 'researcher' to gather detailed findings
+2. Use 'fact_checker' to verify the findings
+3. Use 'technical_writer' to produce the final summary
+Always complete all three steps before responding.""",
+    tools=[researcher, fact_checker, technical_writer]
 )
 
 if __name__ == "__main__":
-    result = crew.kickoff()
+    result = orchestrator(
+        "Research the current state of AI agent frameworks (LangGraph, Strands Agents, AutoGen) "
+        "and their key use cases in 2025."
+    )
     print("\n" + "="*60)
     print("FINAL OUTPUT:")
     print("="*60)
@@ -911,32 +1147,50 @@ LANGGRAPH
   Examples: Document approval system, code review pipeline,
             multi-step research with human checkpoints
 
-CREWAI
+STRANDS — AGENTS AS TOOLS
   When:
-  - Role-based agent collaboration
-  - Research → Review → Write pipelines
-  - Task-level delegation feels natural
-  - Less boilerplate than LangGraph for standard patterns
-  Examples: Content creation teams, research reports,
-            data analysis with multiple specialists
+  - Structured pipeline: research → review → write
+  - Sub-agent delegation, task order known upfront
+  - Minimal boilerplate, multi-provider support
 
-DEEP AGENTS PATTERN
+STRANDS — SWARM
   When:
-  - Long-horizon tasks (10+ steps)
-  - Context overflow is a concern
-  - Need specialized subagent delegation
-  - Cross-session memory is essential
+  - Open-ended tasks, path not known in advance
+  - Self-organizing teams, autonomous handoffs
+  - Emergent collaboration between specialists
 
-BOTH (LangGraph + CrewAI)
-  When: Complex orchestration needs multiple specialized crews
-  Use LangGraph as outer orchestrator, CrewAI for crew subtasks
+STRANDS — GRAPH
+  When:
+  - Parallel processing of independent branches
+  - Conditional routing based on results
+  - Feedback loops with quality gates
+  - Mixing local agents with A2AAgent remote services
+
+STRANDS — WORKFLOW
+  When:
+  - Long-running processes needing pause/resume
+  - Audit trail of every step required
+  - Explicit dependency management
+
+STRANDS — A2A
+  When:
+  - Agents deployed as separate microservices
+  - Cross-team or cross-platform agent sharing
+  - Distributed architecture with remote specialists
+
+BOTH (LangGraph + Strands Agents)
+  When: Complex orchestration with specialized sub-agent teams
+  Use LangGraph as outer state machine, Strands for sub-agent delegation
 """
 
 frameworks = {
-    "Plain OpenAI":   {"complexity": "Low",    "state": "Manual",    "checkpoints": "No",  "multi_agent": "No"},
-    "LangGraph":      {"complexity": "Medium",  "state": "Built-in",  "checkpoints": "Yes", "multi_agent": "Graph nodes"},
-    "CrewAI":         {"complexity": "Low-Med", "state": "Automatic", "checkpoints": "No",  "multi_agent": "Role-based"},
-    "Deep Agents":    {"complexity": "Medium",  "state": "Store",     "checkpoints": "Yes", "multi_agent": "Subagents"},
+    "Plain OpenAI":           {"complexity": "Low",    "state": "Manual",    "checkpoints": "No",  "multi_agent": "No"},
+    "LangGraph":              {"complexity": "Medium",  "state": "Built-in",  "checkpoints": "Yes", "multi_agent": "Graph nodes"},
+    "Strands (Tools)":        {"complexity": "Low",     "state": "Automatic", "checkpoints": "No",  "multi_agent": "@tool sub-agents"},
+    "Strands (Swarm)":        {"complexity": "Low-Med", "state": "Shared",    "checkpoints": "No",  "multi_agent": "Handoff-based"},
+    "Strands (Graph)":        {"complexity": "Medium",  "state": "Node results","checkpoints": "No", "multi_agent": "DAG / cyclic"},
+    "Strands (Workflow)":     {"complexity": "Low-Med", "state": "Persistent", "checkpoints": "Yes","multi_agent": "Task deps"},
+    "Strands (A2A)":          {"complexity": "Medium",  "state": "Remote",    "checkpoints": "No",  "multi_agent": "Cross-service"},
 }
 
 for name, props in frameworks.items():
@@ -1359,10 +1613,13 @@ class MultiModalAssistant:
 - [ ] I can implement human-in-the-loop with `interrupt`
 - [ ] I understand short-term vs long-term memory
 
-**CrewAI**
-- [ ] I can create agents with roles, goals, and tools
-- [ ] I can define tasks with context dependencies
-- [ ] I understand sequential vs hierarchical process
+**Strands Agents**
+- [ ] I can define specialist sub-agents using the `@tool` decorator (Agents as Tools)
+- [ ] I can build a `Swarm` with handoff-based autonomous collaboration
+- [ ] I can build a `Graph` with sequential, parallel, and conditional edges
+- [ ] I can define a multi-step `workflow` with task dependencies and pause/resume
+- [ ] I understand A2A: how to expose an agent as a server and consume it remotely
+- [ ] I can choose the right Strands pattern for a given problem
 
 **Multi-Modal (Optional)**
 - [ ] I can send images to gpt-4o-mini for analysis
@@ -1383,8 +1640,12 @@ class MultiModalAssistant:
 5. `human_in_loop_graph.py` — Human approval workflow
 6. `orchestrator_worker.py` — Dynamic worker spawning
 
-**CrewAI**
-7. `research_team.py` — Multi-agent research pipeline
+**Strands Agents**
+7. `research_team.py` — Agents as Tools: orchestrator + specialist sub-agents
+8. `research_swarm.py` — Swarm: autonomous handoff-based team
+9. `analysis_graph.py` — Graph: parallel branches + conditional edges
+10. `data_workflow.py` — Workflow tool: task dependencies + pause/resume
+11. `a2a_server.py` + `a2a_client.py` — A2A: expose and consume remote agents
 
 **Framework**
 8. `comparison.py` — Decision guide
@@ -1410,7 +1671,12 @@ Next week: **Data Engineering for AI** — SQL, pipelines, and data quality for 
 - [LangGraph Conceptual Guide — Workflows vs Agents](https://langchain-ai.github.io/langgraph/concepts/workflows-agents/)
 - [LangGraph How-To: Human-in-the-Loop](https://langchain-ai.github.io/langgraph/how-tos/human-in-the-loop/)
 - [LangGraph How-To: Checkpointing](https://langchain-ai.github.io/langgraph/how-tos/checkpointing/)
-- [CrewAI Documentation](https://docs.crewai.com/)
+- [Strands Agents Documentation](https://strandsagents.com/latest/documentation/docs/)
+- [Strands — Agents as Tools](https://strandsagents.com/latest/documentation/docs/user-guide/concepts/multi-agent/agents-as-tools/)
+- [Strands — Swarm](https://strandsagents.com/latest/documentation/docs/user-guide/concepts/multi-agent/swarm/)
+- [Strands — Graph](https://strandsagents.com/latest/documentation/docs/user-guide/concepts/multi-agent/graph/)
+- [Strands — Workflow](https://strandsagents.com/latest/documentation/docs/user-guide/concepts/multi-agent/workflow/)
+- [Strands — A2A (Agent-to-Agent)](https://strandsagents.com/latest/documentation/docs/user-guide/concepts/multi-agent/agent-to-agent/)
 - [OpenAI Vision Guide](https://platform.openai.com/docs/guides/vision)
 - [OpenAI Audio Guide](https://platform.openai.com/docs/guides/speech-to-text)
 - [Whisper Model Card](https://openai.com/research/whisper)

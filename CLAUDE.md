@@ -63,7 +63,7 @@ The course builds a single evolving project across 4 months:
 
 - **Weeks 1-4:** API basics, chatbot with memory, structured output (Pydantic), basic RAG
 - **Weeks 5-8:** Embeddings pipeline, production RAG with vector DBs (Qdrant/Chroma), evaluations, security/guardrails → **Portfolio #1: RAG Q&A System**
-- **Weeks 9-12:** Tool calling, ReAct agents, LangGraph/CrewAI frameworks, data engineering → **Portfolio #2: AI Agent**
+- **Weeks 9-12:** Tool calling, ReAct agents, LangGraph/Strands Agents frameworks, data engineering → **Portfolio #2: AI Agent**
 - **Weeks 13-16:** MCP, observability, production hardening (caching, rate limiting, RBAC), deployment → **Portfolio #3: Capstone**
 
 ## Lab Exercise Format

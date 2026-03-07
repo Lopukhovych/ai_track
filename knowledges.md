@@ -414,25 +414,31 @@ graph.add_edge("chatbot", END)
 app = graph.compile()
 ```
 
-### CrewAI
+### Strands Agents
+
+Wrap specialized sub-agents as `@tool` functions; an orchestrator agent calls them.
 
 ```python
-from crewai import Agent, Task, Crew
+from strands import Agent, tool
 
-researcher = Agent(
-    role="Researcher",
-    goal="Find accurate information",
-    llm="gpt-4o-mini"
+@tool
+def researcher(query: str) -> str:
+    """Research a topic and return findings."""
+    agent = Agent(system_prompt="You are a research expert.")
+    return str(agent(query))
+
+@tool
+def writer(content: str) -> str:
+    """Turn research findings into a polished summary."""
+    agent = Agent(system_prompt="You are a technical writer.")
+    return str(agent(f"Summarize for developers: {content}"))
+
+orchestrator = Agent(
+    system_prompt="Route tasks to researcher then writer.",
+    tools=[researcher, writer]
 )
 
-task = Task(
-    description="Research X topic",
-    agent=researcher,
-    expected_output="Summary with sources"
-)
-
-crew = Crew(agents=[researcher], tasks=[task])
-result = crew.kickoff()
+result = orchestrator("Research and summarize AI agent frameworks in 2025.")
 ```
 
 ---

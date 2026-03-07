@@ -807,7 +807,7 @@ if __name__ == "__main__":
 
 ## What's Next?
 
-Next week: **Agent Frameworks + Multi-Modal AI** — advanced LangGraph patterns (orchestrator-worker, deep agents, multi-agent with CrewAI) and Vision/Audio APIs!
+Next week: **Agent Frameworks + Multi-Modal AI** — advanced LangGraph patterns (orchestrator-worker, deep agents, multi-agent with Strands Agents) and Vision/Audio APIs!
 
 ---
 

@@ -91,7 +91,7 @@ MONTH 3: Intelligence                   MONTH 4: Production & Career
 
 | Topic | Why Lower Priority |
 |-------|--------------------|
-| CrewAI specifics (Week 9) | Learn the multi-agent pattern, not the framework |
+| Strands Agents deep dive (Week 9) | Learn the multi-agent @tool pattern — the concept matters more than the specific SDK |
 | Fine-tuning hands-on (Week 14) | Expensive and rarely the right solution — reading is enough |
 | Multi-Modal deep dive (Week 9) | Useful but not a core interview topic |
 
@@ -172,9 +172,9 @@ MONTH 3: Intelligence                   MONTH 4: Production & Career
 ---
 
 ### Week 9: Agent Frameworks — LangGraph Deep Dive & Multi-Modal *(8-12h)*
-**You will know:** LangGraph architecture (StateGraph, nodes, edges, reducers), all 5 workflow patterns, checkpointing, human-in-the-loop (`interrupt`), CrewAI multi-agent, Vision/Audio APIs
+**You will know:** LangGraph architecture (StateGraph, nodes, edges, reducers), all 5 workflow patterns, checkpointing, human-in-the-loop (`interrupt`), Strands Agents multi-agent (@tool sub-agents, orchestrator pattern), Vision/Audio APIs
 
-**You will have:** LangGraph workflows (chaining, routing, orchestrator-worker, evaluator-optimizer), CrewAI agent team, multi-modal assistant (optional)
+**You will have:** LangGraph workflows (chaining, routing, orchestrator-worker, evaluator-optimizer), Strands Agents research team, multi-modal assistant (optional)
 
 **Interview readiness:** Familiar with LangGraph patterns and multi-agent orchestration concepts
 

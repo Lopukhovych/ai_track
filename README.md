@@ -46,7 +46,7 @@ See [agenda/00_summary.md](agenda/00_summary.md) for the complete roadmap with p
 |------|-------|-------------------|
 | [Week 7](agenda/week_07.md) | Agent Fundamentals (ReAct) | Custom ReAct agent, multi-step problem solver |
 | [Week 8](agenda/week_08.md) | Tool Calling & Function Execution | AI that calls multiple tools, full tool loop |
-| [Week 9](agenda/week_09.md) | Agent Frameworks — LangGraph & Multi-Modal | LangGraph workflows, CrewAI, vision/audio (optional) |
+| [Week 9](agenda/week_09.md) | Agent Frameworks — LangGraph & Multi-Modal | LangGraph workflows, Strands Agents multi-agent, vision/audio (optional) |
 | [Week 10](agenda/week_10.md) | LangGraph in Practice + LangSmith & Langfuse | Observable, evaluatable agents with tracing |
 | [Week 11](agenda/week_11.md) | Data Engineering for AI | SQL, ETL pipelines, data quality — **Portfolio #2** |
 

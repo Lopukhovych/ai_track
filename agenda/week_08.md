@@ -807,7 +807,7 @@ Build a dashboard or report.
 
 ## What's Next?
 
-Next week: **Agent Frameworks** — LangGraph and CrewAI for building sophisticated agent systems!
+Next week: **Agent Frameworks** — LangGraph and Strands Agents for building sophisticated agent systems!
 
 ---
 

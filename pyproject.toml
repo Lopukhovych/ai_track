@@ -25,6 +25,10 @@ dependencies = [
     "langgraph>=0.2.0",
     "langsmith>=0.1.0",
 
+    # Strands Agents — multi-agent framework (Week 9)
+    "strands-agents>=0.1.0",
+    "strands-agents-tools>=0.1.0",
+
     # Langfuse observability (Week 10)
     "langfuse>=2.0.0",
 
