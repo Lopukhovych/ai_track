@@ -25,12 +25,12 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| ReAct agent (reasoning) | `gpt-4o-mini` | `deepseek-r1:7b` (native chain-of-thought) |
-| Faster / lighter agent | `gpt-4o-mini` | `llama3.1:8b` |
+| ReAct agent (reasoning) | `gpt-5-mini` | `deepseek-r1:8b` (native chain-of-thought) |
+| Faster / lighter agent | `gpt-5-mini` | `llama3.1:8b` |
 
 **Quick start with Ollama:**
 ```bash
-ollama pull deepseek-r1:7b   # ~4.7GB — built-in <think> reasoning traces
+ollama pull deepseek-r1:8b   # ~5.2GB — built-in <think> reasoning traces
 ollama pull llama3.1:8b      # lighter fallback
 ```
 
@@ -39,7 +39,7 @@ from scripts.model_config import get_client, REASON_MODEL
 # deepseek-r1 outputs its reasoning in <think>...</think> blocks — great for debugging agents
 ```
 
-> `deepseek-r1:7b` is ideal for ReAct loops: its chain-of-thought reasoning is visible and helps you understand why the agent took each step.
+> `deepseek-r1:8b` is ideal for ReAct loops: its chain-of-thought reasoning is visible and helps you understand why the agent took each step.
 
 ---
 
@@ -227,7 +227,7 @@ def run_agent(question: str, max_steps: int = 5) -> str:
         print(f"\n--- Step {step + 1} ---")
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=messages,
             temperature=0
         )
@@ -343,7 +343,7 @@ Or if complete: {{"thought": "...", "answer": "...", "done": true}}
 """
 
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"}
             )
@@ -401,7 +401,7 @@ class PlanAndExecuteAgent:
         """Have LLM create a plan."""
 
         response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[{
                 "role": "user",
                 "content": f"""Create a step-by-step plan to achieve this goal:
@@ -423,7 +423,7 @@ Each step should be a specific action with the tool to use."""
         """Execute a single step."""
 
         response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[{
                 "role": "user",
                 "content": f"""Execute this step:
@@ -470,7 +470,7 @@ Return JSON: {{"tool": "tool_name", "argument": "...", "reasoning": "..."}}"""
 
         # Phase 3: Summarize
         response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[{
                 "role": "user",
                 "content": f"""Summarize what was accomplished:
@@ -548,7 +548,7 @@ Learn from these errors and try a different approach.
 """
 
         response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[{
                 "role": "user",
                 "content": f"""Complete this task:
@@ -625,7 +625,7 @@ class TaskExecutor:
         """Break down a complex task."""
 
         response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[{
                 "role": "user",
                 "content": f"""Break this task into simple subtasks:
@@ -647,7 +647,7 @@ Each subtask should be simple and actionable."""
         """Execute a simple atomic task."""
 
         response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[{
                 "role": "user",
                 "content": f"""Execute this task:

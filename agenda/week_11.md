@@ -34,8 +34,8 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| SQL generation / NL-to-SQL | `gpt-4o-mini` | `qwen2.5-coder:7b` (code-specialized) |
-| Data pipeline chat / analysis | `gpt-4o-mini` | `llama3.1:8b` |
+| SQL generation / NL-to-SQL | `gpt-5-mini` | `qwen2.5-coder:7b` (code-specialized) |
+| Data pipeline chat / analysis | `gpt-5-mini` | `llama3.1:8b` |
 
 **Quick start with Ollama:**
 ```bash

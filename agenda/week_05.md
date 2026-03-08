@@ -25,8 +25,8 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| System under test | `gpt-4o-mini` | `llama3.1:8b` |
-| LLM-as-judge | `gpt-4o-mini` | `qwq:32b` (strong reasoning) or `llama3.1:8b` (faster) |
+| System under test | `gpt-5-mini` | `llama3.1:8b` |
+| LLM-as-judge | `gpt-5-mini` | `qwq:32b` (strong reasoning) or `llama3.1:8b` (faster) |
 
 **Quick start with Ollama:**
 ```bash
@@ -36,7 +36,7 @@ ollama pull qwq:32b       # judge model (requires ~20GB RAM); use llama3.1:8b as
 
 ```python
 from scripts.model_config import get_client, CHAT_MODEL, REASON_MODEL
-# REASON_MODEL defaults to qwq:32b (Ollama) / gpt-4o-mini (OpenAI)
+# REASON_MODEL defaults to qwq:32b (Ollama) / gpt-5-mini (OpenAI)
 ```
 
 > Tip: For LLM-as-judge, use a *different* (ideally stronger) model than the one being evaluated to avoid bias.
@@ -256,7 +256,7 @@ def check_correctness(question: str, answer: str, expected: str) -> CorrectnessS
     """Check if answer matches expected answer."""
     
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "system", "content": "You evaluate AI answers."},
             {"role": "user", "content": f"""
@@ -316,7 +316,7 @@ def evaluate_faithfulness(context: str, answer: str) -> FaithfulnessResult:
     
     # Step 1: Extract claims from answer
     claims_response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "system", "content": "Extract factual claims from text."},
             {"role": "user", "content": f"""
@@ -343,7 +343,7 @@ Return JSON: {{"claims": ["claim 1", "claim 2", ...]}}"""}
     
     for claim in claims:
         verify_response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {"role": "user", "content": f"""
 Is this claim supported by the context?
@@ -436,7 +436,7 @@ def evaluate_rag_response(
     
     # 2. Faithfulness: Is answer grounded in context?
     faith_response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "user", "content": f"""
 Score how well the answer is supported by the context (0-1):
@@ -452,7 +452,7 @@ Return JSON: {{"score": 0.0-1.0, "reason": "..."}}"""}
     
     # 3. Correctness: Does answer match expected?
     correct_response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "user", "content": f"""
 Score how well the answer matches the expected answer (0-1):
@@ -674,7 +674,7 @@ def detect_regression(new_scores, baseline_scores, threshold=0.05):
 ### Challenge 4: Evaluate Across Models
 Test the same prompts across different models:
 ```python
-models = ["gpt-4o-mini", "gpt-4o", "claude-sonnet"]
+models = ["gpt-5-mini", "gpt-5", "claude-sonnet"]
 for model in models:
     scores = evaluate_rag(model, test_cases)
     # Compare: Which model performs best?

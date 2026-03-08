@@ -32,7 +32,7 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| RAG chat / generation | `gpt-4o-mini` | `llama3.1:8b` |
+| RAG chat / generation | `gpt-5-mini` | `llama3.1:8b` |
 | Embeddings | `text-embedding-3-small` | `nomic-embed-text` |
 
 **Quick start with Ollama:**
@@ -192,7 +192,7 @@ Results:
 Return JSON: {{"scores": [score1, score2, ...]}}"""
     
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"}
     )
@@ -524,7 +524,7 @@ class ProductionRAG:
         
         # Generate answer
         response = self.openai.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": "Answer based on context. Cite sources."},
                 {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"}
@@ -643,7 +643,7 @@ def rerank_results(
     ])
     
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{
             "role": "user",
             "content": f"""Score each search result 1-10 for relevance to the query.

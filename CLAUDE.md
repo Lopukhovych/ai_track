@@ -47,7 +47,7 @@ Labs are Jupyter notebooks. Open them in VS Code (with the Jupyter extension) or
 uv run jupyter lab labs/week_01_first_api_call.ipynb
 ```
 
-Run cells top-to-bottom — later cells depend on earlier ones. Default model throughout is `gpt-4o-mini`.
+Run cells top-to-bottom — later cells depend on earlier ones. Default model throughout is `gpt-5-mini`.
 
 ## Running Tests
 

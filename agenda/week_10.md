@@ -26,8 +26,8 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| LangGraph agent | `gpt-4o-mini` | `llama3.1:8b` |
-| LLM-as-judge evaluation | `gpt-4o-mini` | `qwq:32b` or `llama3.1:8b` |
+| LangGraph agent | `gpt-5-mini` | `llama3.1:8b` |
+| LLM-as-judge evaluation | `gpt-5-mini` | `qwq:32b` or `llama3.1:8b` |
 
 **Quick start with Ollama:**
 ```bash
@@ -109,7 +109,7 @@ from langsmith.evaluation import evaluate
 from langchain_openai import ChatOpenAI
 
 client = Client()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 # 1. Build a dataset
 dataset = client.create_dataset("rag-eval-v1")
@@ -226,7 +226,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from typing import TypedDict, Literal
 
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
 # ---- Pattern 1: Chaining (summarize → translate → format) ----
 
@@ -323,8 +323,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from typing import TypedDict, Literal
 import json, re
 
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-judge_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm = ChatOpenAI(model="gpt-5-mini", temperature=0.7)
+judge_llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
 MAX_ITER = 3
 THRESHOLD = 0.8
@@ -399,7 +399,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from typing import TypedDict, Annotated
 import operator
 
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 class ReviewState(TypedDict):
     messages: Annotated[list, operator.add]
@@ -487,7 +487,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
 client = Client()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 # @traceable adds a named span — appears nested inside auto-traces
 @traceable(name="retrieval")
@@ -580,7 +580,7 @@ from typing import TypedDict, Annotated
 import operator
 
 langfuse = Langfuse()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 # ---- Style 1: @observe decorator ----
 @observe(name="retrieval")
@@ -657,7 +657,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
 langfuse = Langfuse()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 def setup_dataset(name: str):
     try:
@@ -710,7 +710,7 @@ def run_evaluation(dataset, experiment_name: str):
 if __name__ == "__main__":
     dataset = setup_dataset("week10-langgraph-qa")
     print("\nRunning evaluation...")
-    run_evaluation(dataset, "gpt-4o-mini-baseline")
+    run_evaluation(dataset, "gpt-5-mini-baseline")
     langfuse.flush()
     print("\n-> Check Langfuse > Datasets for scores!")
 ```
@@ -732,7 +732,7 @@ from langfuse import Langfuse
 # Langfuse traces via explicit callback
 langfuse_handler = LangfuseHandler()
 langfuse = Langfuse()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 @tool
 def count_words(text: str) -> int:

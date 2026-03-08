@@ -23,17 +23,17 @@ if PROVIDER == "ollama":
     EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
     CODE_MODEL = os.getenv("CODE_MODEL", "qwen2.5-coder:7b")
     VISION_MODEL = os.getenv("VISION_MODEL", "llama3.2-vision:11b")
-    REASON_MODEL = os.getenv("REASON_MODEL", "deepseek-r1:7b")
+    REASON_MODEL = os.getenv("REASON_MODEL", "deepseek-r1:8b")
     STRUCTURED_MODEL = os.getenv("STRUCTURED_MODEL", "qwen2.5:7b")
-    SAFETY_MODEL = os.getenv("SAFETY_MODEL", "granite3.1-guardian")
+    SAFETY_MODEL = os.getenv("SAFETY_MODEL", "granite3-guardian:2b")
 else:
-    CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+    CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-5-mini")
     EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")
-    CODE_MODEL = os.getenv("CODE_MODEL", "gpt-4o-mini")
-    VISION_MODEL = os.getenv("VISION_MODEL", "gpt-4o")
-    REASON_MODEL = os.getenv("REASON_MODEL", "gpt-4o-mini")
-    STRUCTURED_MODEL = os.getenv("STRUCTURED_MODEL", "gpt-4o-mini")
-    SAFETY_MODEL = os.getenv("SAFETY_MODEL", "gpt-4o-mini")
+    CODE_MODEL = os.getenv("CODE_MODEL", "gpt-5-mini")
+    VISION_MODEL = os.getenv("VISION_MODEL", "gpt-5")
+    REASON_MODEL = os.getenv("REASON_MODEL", "gpt-5-mini")
+    STRUCTURED_MODEL = os.getenv("STRUCTURED_MODEL", "gpt-5-mini")
+    SAFETY_MODEL = os.getenv("SAFETY_MODEL", "gpt-5-mini")
 
 
 def get_client() -> OpenAI:

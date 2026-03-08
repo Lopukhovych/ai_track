@@ -74,6 +74,8 @@ uv sync
 # Copy and fill in your API keys
 cp .env.example .env
 
+# Add .env keys
+
 # Start Jupyter Lab
 uv run jupyter lab
 ```
@@ -94,9 +96,13 @@ All weeks support [Ollama](https://ollama.com) as a free alternative to OpenAI:
 
 ```bash
 # Install Ollama, then pull models as needed
-ollama pull llama3.1:8b          # General chat
-ollama pull nomic-embed-text     # Embeddings
-ollama pull deepseek-r1:7b       # ReAct agent reasoning
+ollama pull llama3.1:8b              # General chat (CHAT_MODEL)
+ollama pull nomic-embed-text         # Embeddings (EMBED_MODEL)
+ollama pull qwen2.5-coder:7b         # Code generation (CODE_MODEL)
+ollama pull llama3.2-vision:11b      # Vision/multimodal (VISION_MODEL)
+ollama pull deepseek-r1:8b           # Reasoning/ReAct agents (REASON_MODEL)
+ollama pull qwen2.5:7b               # Structured output (STRUCTURED_MODEL)
+ollama pull granite3-guardian:2b      # Safety/guardrails (SAFETY_MODEL)
 
 # Switch provider
 export AI_PROVIDER=ollama

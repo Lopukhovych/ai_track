@@ -417,7 +417,7 @@ class SemanticRAG:
         
         # Generate answer
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": "Answer based on the provided context only."},
                 {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"}

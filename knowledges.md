@@ -32,7 +32,7 @@ from openai import OpenAI
 client = OpenAI()
 
 response = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     messages=[
         {"role": "system", "content": "You are helpful."},
         {"role": "user", "content": "Hello"}
@@ -83,22 +83,22 @@ response = client.chat.completions.create(
 
 ### LLM Provider Comparison
 
-| Provider | Best For | Context Window | Pricing (approx) | Unique Features |
-|----------|----------|----------------|------------------|-----------------|
-| **OpenAI GPT-4o** | General purpose, coding | 128K | $5/$15 per 1M tokens | Best tool calling, vision |
-| **GPT-4o-mini** | Cost-effective tasks | 128K | $0.15/$0.60 per 1M | Best value for simple tasks |
-| **Claude Sonnet** | Long docs, analysis | 200K | $3/$15 per 1M | Extended thinking, artifacts |
-| **Claude Haiku** | Fast, cheap | 200K | $0.25/$1.25 per 1M | Fastest Claude model |
-| **Gemini 1.5 Pro** | Multimodal, long context | 1M-2M | $1.25/$5 per 1M | Largest context window |
-| **Gemini Flash** | Speed, efficiency | 1M | $0.075/$0.30 per 1M | Very fast, cheap |
-| **Ollama/Local** | Privacy, offline | Varies | Free | No data leaves machine |
+| Provider           | Best For | Context Window | Pricing (approx)     | Unique Features |
+|--------------------|----------|----------------|----------------------|-----------------|
+| **OpenAI GPT-5**   | General purpose, coding | 128K | $5/$15 per 1M tokens | Best tool calling, vision |
+| **gpt-5-mini**     | Cost-effective tasks | 128K | $1.25/$10 per 1M     | Best value for simple tasks |
+| **Claude Sonnet**  | Long docs, analysis | 200K | $3/$15 per 1M        | Extended thinking, artifacts |
+| **Claude Haiku**   | Fast, cheap | 200K | $0.25/$1.25 per 1M   | Fastest Claude model |
+| **Gemini 1.5 Pro** | Multimodal, long context | 1M-2M | $1.25/$5 per 1M      | Largest context window |
+| **Gemini Flash**   | Speed, efficiency | 1M | $0.075/$0.30 per 1M  | Very fast, cheap |
+| **Ollama/Local**   | Privacy, offline | Varies | Free                 | No data leaves machine |
 
 **When to use which:**
-- **Production chat apps**: GPT-4o-mini or Claude Haiku (cost + quality balance)
-- **Complex reasoning**: GPT-4o or Claude Sonnet  
+- **Production chat apps**: gpt-5-mini or Claude Haiku (cost + quality balance)
+- **Complex reasoning**: GPT-5 or Claude Sonnet  
 - **Very long documents**: Gemini 1.5 Pro (1M+ context)
 - **Sensitive data**: Ollama (local, no API calls)
-- **Multimodal (images)**: GPT-4o or Gemini
+- **Multimodal (images)**: GPT-5 or Gemini
 
 ---
 
@@ -155,7 +155,7 @@ class Answer(BaseModel):
     sources: list[str]
 
 response = client.beta.chat.completions.parse(
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     messages=[...],
     response_format=Answer
 )
@@ -278,7 +278,7 @@ def rag_query(question: str) -> str:
     
     # 4. Generate answer
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "system", "content": f"Context:\n{context}"},
             {"role": "user", "content": question}
@@ -293,7 +293,7 @@ def rag_query(question: str) -> str:
 ```python
 def rewrite_query(original: str) -> str:
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{
             "role": "user",
             "content": f"Rewrite for search:\n{original}"
@@ -340,7 +340,7 @@ tools = [
 
 ```python
 response = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     messages=messages,
     tools=tools
 )

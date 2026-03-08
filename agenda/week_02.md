@@ -27,7 +27,7 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| Chat (RAG answers) | `gpt-4o-mini` | `llama3.1:8b` |
+| Chat (RAG answers) | `gpt-5-mini` | `llama3.1:8b` |
 | Embeddings | `text-embedding-3-small` | `nomic-embed-text` |
 
 **Quick start with Ollama:**
@@ -353,7 +353,7 @@ Answer:"""
     
     # Get answer from AI
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "system", "content": "You answer questions based only on the provided context."},
             {"role": "user", "content": prompt}
@@ -435,7 +435,7 @@ Rules:
         
         # Get response
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=messages
         )
         
@@ -533,7 +533,7 @@ Return JSON:
 }}"""
     
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "system", "content": "Answer questions with citations."},
             {"role": "user", "content": prompt}

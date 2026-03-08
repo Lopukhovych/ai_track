@@ -77,7 +77,7 @@ week1_exercises = [
 2. Specify the target language (Spanish)
 3. Tell it to only output the translation''',
         'solution': '''response = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     messages=[
         {"role": "system", "content": "You are a translator. Translate to Spanish. Only output the translation."},
         {"role": "user", "content": "Hello, how are you?"}
@@ -94,7 +94,7 @@ print(response.choices[0].message.content)
 - Ask for "step by step" explanation''',
         'solution': '''# ELI5 version - great for beginners
 response = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     messages=[
         {"role": "system", "content": "Explain code like I am 5. Use simple analogies."},
         {"role": "user", "content": f"What does this code do?\\n{code}"}
@@ -177,7 +177,7 @@ class Recipe(BaseModel):
 
 def extract_recipe(text: str) -> Recipe:
     response = client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "system", "content": "Extract recipe information."},
             {"role": "user", "content": text}
@@ -202,7 +202,7 @@ print(recipe.model_dump_json(indent=2))'''
 
 def classify_content(text: str) -> ContentLabels:
     response = client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "system", "content": "Classify the content."},
             {"role": "user", "content": text}

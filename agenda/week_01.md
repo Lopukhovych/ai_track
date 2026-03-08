@@ -1,6 +1,6 @@
 # Week 1: API Fundamentals, Chatbot & Structured Output
 
-**Month:** 1 (First Steps) | **Duration:** 18-24 hours (covers original weeks 1–3)
+**Month:** 1 (First Steps) | **Duration:** 18-24 hours
 
 ---
 
@@ -36,8 +36,8 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| Chat / Chatbot | `gpt-4o-mini` | `llama3.1:8b` |
-| Structured JSON output | `gpt-4o-mini` | `qwen2.5:7b` (better JSON compliance) |
+| Chat / Chatbot | `gpt-5-mini` | `llama3.1:8b` |
+| Structured JSON output | `gpt-5-mini` | `qwen2.5:7b` (better JSON compliance) |
 
 **Quick start with Ollama:**
 ```bash
@@ -111,7 +111,7 @@ Your Code  →  API Request  →  OpenAI Servers  →  Response  →  Your Code
 #### 3. Understanding Tokens and Pricing (30 min)
 
 **What is a token?**
-- A token ≈ 4 characters of English text
+- A token ≈ 4-6 characters of English text
 - "Hello world" = 2 tokens
 - "Artificial Intelligence" = 2 tokens
 - A page of text ≈ 400-500 tokens
@@ -120,10 +120,11 @@ Your Code  →  API Request  →  OpenAI Servers  →  Response  →  Your Code
 - You pay per token (input + output)
 - Models have token limits (context window)
 
-**Example pricing (GPT-4o-mini):**
-- Input: $0.15 per 1 million tokens
-- Output: $0.60 per 1 million tokens
+**Example pricing (gpt-5-mini):**
+- Input: $0.25 per 1 million tokens
+- Output: $2.00 per 1 million tokens
 - **Practical cost:** ~$0.001 for a typical question/answer
+- [Check here](https://developers.openai.com/api/docs/models/gpt-5-mini)
 
 **Don't worry about cost yet** — you'll spend pennies while learning.
 
@@ -221,11 +222,12 @@ Rules:
 
 **Problem:** You can't send infinite history. Models have limits.
 
-| Model | Context Window |
-|-------|----------------|
-| GPT-4o-mini | 128,000 tokens |
-| GPT-4o | 128,000 tokens |
-| Claude Sonnet | 200,000 tokens |
+| Model         | Context Window   |
+|---------------|------------------|
+| gpt-5-mini    | 128,000 tokens   |
+| GPT-5         | 128,000 tokens   |
+| GPT-5.4       | 1,050,000 tokens |
+| Claude Sonnet | 200,000 tokens   |
 
 **Strategies when history gets too long:**
 1. **Truncate old messages:** Keep only recent N messages
@@ -246,7 +248,7 @@ client = OpenAI()
 
 # Enable streaming with stream=True
 response = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     messages=[{"role": "user", "content": "Tell me a story"}],
     stream=True  # This enables streaming
 )
@@ -263,7 +265,7 @@ print()  # Newline at the end
 def stream_chat(messages: list) -> str:
     """Stream response to console, return full message."""
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=messages,
         stream=True
     )
@@ -381,8 +383,9 @@ User Request → [AI Processes] → [Human Reviews] → [Action Executed]
 ```
 
 **When to use:**
-| Scenario | Why Human Needed |
-|----------|------------------|
+
+| Scenario | Reliability |
+|--------|-------------|
 | Sending emails | AI might write inappropriate content |
 | Financial transactions | Errors could be costly |
 | Customer responses | Brand reputation at stake |
@@ -419,25 +422,33 @@ else:
 # Windows (PowerShell)
 winget install Python.Python.3.12
 
+# macOS (Homebrew)
+brew install python@3.12
+
 # Verify installation
 python --version
 ```
 
 **Create your project:**
 
+****We don't need to do it in our labs****
+
 ```bash
-# Create project folder
-mkdir my-ai-project
+# Install uv (once, globally)
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create project folder and initialise with uv
+uv init my-ai-project
 cd my-ai-project
 
-# Create virtual environment
-python -m venv .venv
+# Add dependencies (creates .venv and installs automatically)
+uv add openai python-dotenv
 
-# Activate it (Windows)
-.venv\Scripts\activate
-
-# Install the OpenAI library
-pip install openai python-dotenv
+# Run any script inside the managed environment
+uv run python your_script.py
 ```
 
 **Create project structure:**
@@ -490,7 +501,7 @@ client = OpenAI()
 # Send a message to the AI
 try:
     response = client.chat.completions.create(
-        model="gpt-4o-mini",  # The AI model to use
+        model="gpt-5-mini",  # The AI model to use
         messages=[
             {"role": "user", "content": "Hello! What is artificial intelligence?"}
         ]
@@ -532,7 +543,7 @@ load_dotenv()                  # Read the API key from .env
 client = OpenAI()              # Create connection to OpenAI
 
 response = client.chat.completions.create(
-    model="gpt-4o-mini",       # Which AI model to use
+    model="gpt-5-mini",       # Which AI model to use
     messages=[                 # The conversation
         {"role": "user", "content": "Your question here"}
     ]
@@ -569,7 +580,7 @@ for question in questions:
     print(f"\n--- Question: {question} ---")
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{"role": "user", "content": question}]
     )
 
@@ -586,7 +597,7 @@ load_dotenv()
 client = OpenAI()
 
 response = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     messages=[{"role": "user", "content": "Tell me a short joke"}]
 )
 
@@ -627,7 +638,7 @@ while True:
 
     # Send to AI
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{"role": "user", "content": user_input}]
     )
 
@@ -670,7 +681,7 @@ while True:
 
     # Send entire conversation to AI
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=messages
     )
 
@@ -706,7 +717,7 @@ class Chatbot:
 
         # Get AI response
         response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=self.messages
         )
 
@@ -859,7 +870,7 @@ class SmartChatbot(Chatbot):
         ])
 
         summary_response = self.client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": "Summarize this conversation in 2-3 sentences."},
                 {"role": "user", "content": history_text}
@@ -975,7 +986,7 @@ client = OpenAI()
 def analyze_product(description: str) -> dict:
     """Get structured analysis of a product."""
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {
                 "role": "system",
@@ -1033,7 +1044,7 @@ def analyze_product_validated(description: str) -> ProductAnalysis:
     schema = ProductAnalysis.model_json_schema()
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {
                 "role": "system",
@@ -1088,7 +1099,7 @@ def extract_with_retry(email_text: str, max_retries: int = 3) -> EmailExtraction
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=[
                     {
                         "role": "system",
@@ -1151,7 +1162,7 @@ def classify_intent(message: str) -> str:
     """Classify user intent using few-shot prompting."""
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {
                 "role": "system",
@@ -1215,7 +1226,7 @@ def answer_with_reasoning(question: str) -> ReasonedAnswer:
     """Get an answer with step-by-step reasoning."""
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {
                 "role": "system",
@@ -1293,7 +1304,7 @@ Always respond with JSON:
 }}"""
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": system},
                 *self.messages
@@ -1357,7 +1368,7 @@ class ApprovalResult(BaseModel):
 def draft_email(request: str) -> EmailDraft:
     """AI drafts an email based on user request."""
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[
             {
                 "role": "system",

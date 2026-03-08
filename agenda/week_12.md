@@ -25,8 +25,8 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| MCP client (AI host) | `gpt-4o-mini` | `llama3.1:8b` |
-| Observability / log analysis | `gpt-4o-mini` | `llama3.1:8b` |
+| MCP client (AI host) | `gpt-5-mini` | `llama3.1:8b` |
+| Observability / log analysis | `gpt-5-mini` | `llama3.1:8b` |
 
 **Quick start with Ollama:**
 ```bash
@@ -304,7 +304,7 @@ class MCPClient:
         messages = [{"role": "user", "content": message}]
         
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=messages,
             tools=self.tool_definitions
         )
@@ -325,7 +325,7 @@ class MCPClient:
                 })
             
             final = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=messages
             )
             return final.choices[0].message.content
@@ -460,7 +460,7 @@ def logged_chat(message: str) -> str:
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[{"role": "user", "content": message}]
         )
         return response.choices[0].message.content
@@ -470,7 +470,7 @@ def logged_chat(message: str) -> str:
     finally:
         latency = (time.time() - start) * 1000
         ai_logger.log_call(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             response=response,
             latency_ms=latency,
             error=error
@@ -631,7 +631,7 @@ def traced_rag_query(question: str) -> str:
         # LLM call
         with tracer.span("llm_generate") as llm_span:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=[
                     {"role": "user", "content": f"Context: {docs}\n\nQ: {question}"}
                 ]
@@ -769,7 +769,7 @@ client = OpenAI()
 @timed("chat_completion")
 def chat(message: str) -> str:
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{"role": "user", "content": message}]
     )
     
@@ -825,7 +825,7 @@ class AIObservability:
             
             try:
                 response = client.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model="gpt-5-mini",
                     messages=[{"role": "user", "content": message}]
                 )
                 
@@ -833,7 +833,7 @@ class AIObservability:
                 
                 # Log
                 self.logger.log_call(
-                    model="gpt-4o-mini",
+                    model="gpt-5-mini",
                     response=response,
                     latency_ms=latency
                 )

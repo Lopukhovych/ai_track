@@ -88,11 +88,11 @@ uv run python src/main.py "Research the latest Python version and calculate the 
 
 | Task | OpenAI | Ollama |
 |------|--------|--------|
-| Agent reasoning | `gpt-4o-mini` | `deepseek-r1:7b` (strong reasoning) |
-| Tool calls | `gpt-4o-mini` | `llama3.1:8b` |
+| Agent reasoning | `gpt-5-mini` | `deepseek-r1:8b` (strong reasoning) |
+| Tool calls | `gpt-5-mini` | `llama3.1:8b` |
 
 ```bash
-ollama pull deepseek-r1:7b
+ollama pull deepseek-r1:8b
 export AI_PROVIDER=ollama
 ```
 

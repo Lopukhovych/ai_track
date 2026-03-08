@@ -132,11 +132,11 @@ curl -X POST http://localhost:8000/chat \
 
 ## Model Options
 
-| Feature | OpenAI | Ollama |
-|---------|--------|--------|
-| Chat / RAG / Tools | `gpt-4o-mini` | `llama3.1:8b` |
+| Feature | OpenAI                   | Ollama |
+|---------|--------------------------|--------|
+| Chat / RAG / Tools | `gpt-5-mini`             | `llama3.1:8b` |
 | Embeddings | `text-embedding-3-small` | `nomic-embed-text` |
-| Vision | `gpt-4o` | `llama3.2-vision:11b` |
+| Vision | `gpt-5`                  | `llama3.2-vision:11b` |
 
 ```bash
 # Local setup

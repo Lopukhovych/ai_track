@@ -38,7 +38,7 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| Deployed app model | `gpt-4o-mini` | `llama3.1:8b` (self-hosted in Docker) |
+| Deployed app model | `gpt-5-mini` | `llama3.1:8b` (self-hosted in Docker) |
 | Fine-tuning | OpenAI fine-tuning API | Ollama + local `ollama create` from Modelfile |
 
 **Quick start with Ollama:**
@@ -248,7 +248,7 @@ def health():
 def chat(request: ChatRequest):
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": request.system_prompt},
                 {"role": "user", "content": request.message}
@@ -257,7 +257,7 @@ def chat(request: ChatRequest):
         
         return ChatResponse(
             response=response.choices[0].message.content,
-            model="gpt-4o-mini"
+            model="gpt-5-mini"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -341,7 +341,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     
     # AI settings
-    default_model: str = "gpt-4o-mini"
+    default_model: str = "gpt-5-mini"
     max_tokens: int = 1000
     temperature: float = 0.7
     
@@ -374,7 +374,7 @@ OPENAI_API_KEY=sk-...
 APP_NAME=AI API
 DEBUG=false
 LOG_LEVEL=INFO
-DEFAULT_MODEL=gpt-4o-mini
+DEFAULT_MODEL=gpt-5-mini
 RATE_LIMIT_RPM=60
 ```
 
@@ -532,7 +532,7 @@ def upload_training_file(filename: str) -> str:
     print(f"Uploaded file: {file.id}")
     return file.id
 
-def create_fine_tune_job(file_id: str, model: str = "gpt-4o-mini-2024-07-18") -> str:
+def create_fine_tune_job(file_id: str, model: str = "gpt-5-mini-2024-07-18") -> str:
     """Create a fine-tuning job."""
     
     job = client.fine_tuning.jobs.create(
@@ -618,7 +618,7 @@ if __name__ == "__main__":
     
     # Step 4: Test the model
     # test_fine_tuned_model(
-    #     "ft:gpt-4o-mini-2024-07-18:your-org::xxx",
+    #     "ft:gpt-5-mini-2024-07-18:your-org::xxx",
     #     [
     #         "I need help with my account",
     #         "Your app is broken",
@@ -684,8 +684,8 @@ def compare_responses(
 # Example usage (uncomment with your model)
 if __name__ == "__main__":
     # compare_responses(
-    #     base_model="gpt-4o-mini",
-    #     fine_tuned_model="ft:gpt-4o-mini-2024-07-18:your-org::xxx",
+    #     base_model="gpt-5-mini",
+    #     fine_tuned_model="ft:gpt-5-mini-2024-07-18:your-org::xxx",
     #     system_prompt="You are a customer support agent for TechCo.",
     #     test_messages=[
     #         "My order is late",

@@ -18,7 +18,7 @@ Build a production-ready HR assistant that answers questions from company docume
 ### Security (Week 6)
 - [ ] Input validation — detect prompt injection attempts
 - [ ] PII detection and redaction (emails, SSNs, phone numbers)
-- [ ] Content moderation (OpenAI API or `granite3.1-guardian`)
+- [ ] Content moderation (OpenAI API or `granite3-guardian:2b`)
 - [ ] Hardened system prompt
 - [ ] Output filtering — check for leaked instructions or hallucinations
 
@@ -82,13 +82,13 @@ uv run python src/evaluator.py
 
 | Task | OpenAI | Ollama |
 |------|--------|--------|
-| Chat / RAG | `gpt-4o-mini` | `llama3.1:8b` |
+| Chat / RAG | `gpt-5-mini` | `llama3.1:8b` |
 | Embeddings | `text-embedding-3-small` | `nomic-embed-text` |
-| Safety classifier | Moderation API | `granite3.1-guardian` |
+| Safety classifier | Moderation API | `granite3-guardian:2b` |
 
 ```bash
 # Local setup
-ollama pull llama3.1:8b && ollama pull nomic-embed-text && ollama pull granite3.1-guardian
+ollama pull llama3.1:8b && ollama pull nomic-embed-text && ollama pull granite3-guardian:2b
 export AI_PROVIDER=ollama
 ```
 

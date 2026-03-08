@@ -27,7 +27,7 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| Primary provider | `gpt-4o-mini` | `llama3.1:8b` |
+| Primary provider | `gpt-5-mini` | `llama3.1:8b` |
 | Failover / backup provider | OpenAI → Azure OpenAI | OpenAI → Ollama (local fallback) |
 
 **Quick start with Ollama:**
@@ -955,7 +955,7 @@ class ResilientAIClient:
             
             try:
                 response = self.client.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model="gpt-5-mini",
                     messages=[{"role": "user", "content": message}]
                 )
                 

@@ -25,8 +25,8 @@ By the end of this week, you will:
 
 | Feature | OpenAI (Paid) | Ollama (Free/Local) |
 |---------|--------------|---------------------|
-| Tool calling / function calling | `gpt-4o-mini` | `llama3.1:8b` |
-| Structured tool schemas | `gpt-4o-mini` | `qwen2.5:7b` (reliable JSON/schema compliance) |
+| Tool calling / function calling | `gpt-5-mini` | `llama3.1:8b` |
+| Structured tool schemas | `gpt-5-mini` | `qwen2.5:7b` (reliable JSON/schema compliance) |
 
 **Quick start with Ollama:**
 ```bash
@@ -211,7 +211,7 @@ def chat_with_tools(user_message: str) -> str:
 
     # First call
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=messages,
         tools=tools
     )
@@ -245,7 +245,7 @@ def chat_with_tools(user_message: str) -> str:
 
         # Get final response
         final_response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=messages,
             tools=tools
         )
@@ -355,7 +355,7 @@ def chat_with_tools(user_message: str) -> str:
     # Loop to handle multiple tool call rounds
     while True:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=messages,
             tools=tools
         )
@@ -454,7 +454,7 @@ def chat(message: str) -> str:
     messages = [{"role": "user", "content": message}]
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=messages,
         tools=tools
     )
@@ -476,7 +476,7 @@ def chat(message: str) -> str:
             })
 
         final = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=messages,
             tools=tools
         )
@@ -579,7 +579,7 @@ def chat(message: str) -> str:
     ]
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=messages,
         tools=tools
     )
@@ -602,7 +602,7 @@ def chat(message: str) -> str:
             })
 
         final = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=messages,
             tools=tools
         )
@@ -670,7 +670,7 @@ class ToolAgent:
 
         for _ in range(max_rounds):
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     *self.conversation

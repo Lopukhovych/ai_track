@@ -26,12 +26,12 @@ By the end of this week, you will:
 
 ## Model Options
 
-| Feature | OpenAI (Paid) | Ollama (Free/Local) |
-|---------|--------------|---------------------|
-| LangGraph agents / chat | `gpt-4o-mini` | `llama3.1:8b` |
-| Vision / image understanding | `gpt-4o` | `llama3.2-vision:11b` or `llava:7b` |
+| Feature | OpenAI (Paid)      | Ollama (Free/Local) |
+|---------|--------------------|---------------------|
+| LangGraph agents / chat | `gpt-5-mini`       | `llama3.1:8b` |
+| Vision / image understanding | `gpt-5`            | `llama3.2-vision:11b` or `llava:7b` |
 | Audio transcription (Whisper) | OpenAI Whisper API | `whisper` via `ollama run whisper` |
-| Multi-agent orchestration | `gpt-4o-mini` | `llama3.1:8b` |
+| Multi-agent orchestration | `gpt-5-mini`       | `llama3.1:8b` |
 
 **Quick start with Ollama:**
 ```bash
@@ -592,7 +592,7 @@ from typing import TypedDict
 from dotenv import load_dotenv
 
 load_dotenv()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 class ChainState(TypedDict):
     topic: str
@@ -647,7 +647,7 @@ import json
 from dotenv import load_dotenv
 
 load_dotenv()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 class SupportState(TypedDict):
     message: str
@@ -722,7 +722,7 @@ import json
 from dotenv import load_dotenv
 
 load_dotenv()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 class OptimizeState(TypedDict):
     task: str
@@ -820,7 +820,7 @@ tools = [search, calculate, get_weather]
 tools_by_name = {t.name: t for t in tools}
 
 # --- LLM with tools bound ---
-llm = ChatOpenAI(model="gpt-4o-mini").bind_tools(tools)
+llm = ChatOpenAI(model="gpt-5-mini").bind_tools(tools)
 
 # --- Nodes ---
 def agent_node(state: MessagesState) -> dict:
@@ -896,7 +896,7 @@ from typing import TypedDict
 from dotenv import load_dotenv
 
 load_dotenv()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 class EmailState(TypedDict):
     request: str
@@ -975,7 +975,7 @@ import json
 from dotenv import load_dotenv
 
 load_dotenv()
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 
 class MainState(TypedDict):
     topic: str
@@ -1208,12 +1208,12 @@ for name, props in frameworks.items():
 
 ### Theory: What Modalities OpenAI Supports
 
-| Modality | Model | Input | Output | Real-World Use |
-|----------|-------|-------|--------|----------------|
-| **Vision** | gpt-4o / gpt-4o-mini | Image + text | Text | OCR, chart analysis, product images |
-| **Image Generation** | DALL-E 3 | Text prompt | Image | Marketing, prototyping |
-| **Speech-to-Text** | Whisper | Audio file | Text | Meeting notes, voice commands |
-| **Text-to-Speech** | TTS-1 | Text | Audio | Accessibility, voice assistants |
+| Modality | Model              | Input | Output | Real-World Use |
+|----------|--------------------|-------|--------|----------------|
+| **Vision** | gpt-5 / gpt-5-mini | Image + text | Text | OCR, chart analysis, product images |
+| **Image Generation** | DALL-E 3           | Text prompt | Image | Marketing, prototyping |
+| **Speech-to-Text** | Whisper            | Audio file | Text | Meeting notes, voice commands |
+| **Text-to-Speech** | TTS-1              | Text | Audio | Accessibility, voice assistants |
 
 ### Multi-Modal Vision
 
@@ -1235,7 +1235,7 @@ def encode_image(path: str) -> str:
         return base64.b64encode(f.read()).decode()
 
 def analyze_image(image_path: str, question: str = "What is in this image?") -> str:
-    """Send an image to GPT-4o-mini for analysis."""
+    """Send an image to gpt-5-mini for analysis."""
     b64 = encode_image(image_path)
 
     # Detect format from extension
@@ -1244,7 +1244,7 @@ def analyze_image(image_path: str, question: str = "What is in this image?") -> 
             "gif": "image/gif", "webp": "image/webp"}.get(ext, "image/jpeg")
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{
             "role": "user",
             "content": [
@@ -1259,7 +1259,7 @@ def analyze_image(image_path: str, question: str = "What is in this image?") -> 
 def analyze_image_url(url: str, question: str) -> str:
     """Analyze an image from a URL (no base64 needed)."""
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{
             "role": "user",
             "content": [
@@ -1306,7 +1306,7 @@ def extract_invoice_data(image_path: str) -> InvoiceData:
         b64 = base64.b64encode(f.read()).decode()
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{
             "role": "user",
             "content": [
@@ -1333,7 +1333,7 @@ def analyze_chart(image_path: str) -> dict:
         b64 = base64.b64encode(f.read()).decode()
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{
             "role": "user",
             "content": [
@@ -1377,7 +1377,7 @@ def compare_images(image_paths: list[str], question: str) -> str:
         })
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{"role": "user", "content": content}],
         max_tokens=500
     )
@@ -1530,7 +1530,7 @@ class MultiModalAssistant:
             b64 = base64.b64encode(f.read()).decode()
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[{
                 "role": "user",
                 "content": [
@@ -1551,7 +1551,7 @@ class MultiModalAssistant:
         self.history.append({"role": "user", "content": user_content})
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": self.system_prompt},
                 *self.history
@@ -1622,7 +1622,7 @@ class MultiModalAssistant:
 - [ ] I can choose the right Strands pattern for a given problem
 
 **Multi-Modal (Optional)**
-- [ ] I can send images to gpt-4o-mini for analysis
+- [ ] I can send images to gpt-5-mini for analysis
 - [ ] I can extract structured data from images (OCR)
 - [ ] I can transcribe audio with Whisper
 - [ ] I can generate speech with TTS

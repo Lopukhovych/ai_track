@@ -23,12 +23,12 @@ By the end of this week, you will:
 
 ## Model Options
 
-| Feature | OpenAI (Paid) | Ollama (Free/Local) |
-|---------|--------------|---------------------|
-| Chat / RAG | `gpt-4o-mini` | `llama3.1:8b` |
+| Feature | OpenAI (Paid)            | Ollama (Free/Local) |
+|---------|--------------------------|---------------------|
+| Chat / RAG | `gpt-5-mini`             | `llama3.1:8b` |
 | Embeddings | `text-embedding-3-small` | `nomic-embed-text` |
-| Vision | `gpt-4o` | `llama3.2-vision:11b` |
-| Code generation | `gpt-4o-mini` | `qwen2.5-coder:7b` |
+| Vision | `gpt-5`                  | `llama3.2-vision:11b` |
+| Code generation | `gpt-5-mini`             | `qwen2.5-coder:7b` |
 
 **Quick start with Ollama:**
 ```bash
@@ -240,7 +240,7 @@ class ToolKit:
             prompt = f"Summarize this text ({style} style):\n\n{arguments['text']}"
             
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=[{"role": "user", "content": prompt}]
             )
             return response.choices[0].message.content
@@ -297,7 +297,7 @@ Be helpful, accurate, and concise."""
         
         # Call with tools
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=messages,
             tools=self.toolkit.definitions
         )
@@ -324,7 +324,7 @@ Be helpful, accurate, and concise."""
             ] + self.conversation[-15:]
             
             final_response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=final_messages
             )
             
