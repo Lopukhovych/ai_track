@@ -1504,7 +1504,7 @@ if __name__ == "__main__":
 
 **"ModuleNotFoundError: No module named 'openai'"**
 - Make sure virtual environment is activated
-- Run: `pip install openai`
+- Run: `uv add openai`
 
 **"AuthenticationError"**
 - Check your API key in `.env`
