@@ -349,11 +349,11 @@ Review: "Best purchase ever!" → Sentiment:
 
 **Methods to get JSON:**
 
-| Method | Reliability | How |
-|--------|-------------|-----|
-| **Ask nicely** | 70% | "Return JSON..." |
-| **JSON mode** | 95% | `response_format={"type": "json_object"}` |
-| **Structured outputs** | 99% | Provide Pydantic schema |
+| Method                 | Reliability  | How                                       |
+|------------------------|--------------|-------------------------------------------|
+| **Ask nicely**         | 70%          | "Return JSON..."                          |
+| **JSON mode**          | 95%          | `response_format={"type": "json_object"}` |
+| **Structured outputs** | 99%          | Provide Pydantic schema                   |
 
 #### 4. Validation with Pydantic (15 min)
 
@@ -523,12 +523,13 @@ python first_call.py
 ```
 
 **Common errors and fixes:**
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `AuthenticationError` | Invalid API key | Check .env file has correct key |
-| `RateLimitError` | Too many requests | Wait a moment, try again |
-| `InsufficientQuotaError` | No credits | Add payment method at platform.openai.com |
-| `Connection error` | Network issue | Check internet connection |
+ 
+| Error                    | Cause             | Fix                                       |
+|--------------------------|-------------------|-------------------------------------------|
+| `AuthenticationError`    | Invalid API key   | Check .env file has correct key           |
+| `RateLimitError`         | Too many requests | Wait a moment, try again                  |
+| `InsufficientQuotaError` | No credits        | Add payment method at platform.openai.com |
+| `Connection error`       | Network issue     | Check internet connection                 |
 
 #### Task 4: Understanding the Code (30 min)
 
@@ -611,8 +612,8 @@ print(f"Output tokens: {response.usage.completion_tokens}")
 print(f"Total tokens: {response.usage.total_tokens}")
 
 # Calculate cost
-input_cost = response.usage.prompt_tokens * 0.15 / 1_000_000
-output_cost = response.usage.completion_tokens * 0.60 / 1_000_000
+input_cost = response.usage.prompt_tokens * 0.25 / 1_000_000
+output_cost = response.usage.completion_tokens * 2.00 / 1_000_000
 print(f"Estimated cost: ${input_cost + output_cost:.6f}")
 ```
 
