@@ -6,7 +6,7 @@
 
 ## Overview
 
-Your chatbot is smart, but it only knows things from its training data. This week you'll teach it to answer questions from **your own documents**. This technique is called **RAG (Retrieval-Augmented Generation)** — the most important concept in AI engineering.
+Your chatbot from previous week is smart, but it only knows things from its training data. This week you'll teach it to answer questions from **your own documents**. This technique is called **RAG (Retrieval-Augmented Generation)** — the most important concept in AI engineering.
 
 **Milestone:** By the end of this week, your chatbot can answer questions about your own files!
 
@@ -25,10 +25,10 @@ By the end of this week, you will:
 
 ## Model Options
 
-| Feature | OpenAI (Paid) | Ollama (Free/Local) |
-|---------|--------------|---------------------|
-| Chat (RAG answers) | `gpt-5-mini` | `llama3.1:8b` |
-| Embeddings | `text-embedding-3-small` | `nomic-embed-text` |
+| Feature            | OpenAI (Paid)            | Ollama (Free/Local) |
+|--------------------|--------------------------|---------------------|
+| Chat (RAG answers) | `gpt-5-mini`             | `llama3.1:8b`       |
+| Embeddings         | `text-embedding-3-small` | `nomic-embed-text`  |
 
 **Quick start with Ollama:**
 ```bash
@@ -98,18 +98,19 @@ prompt = f"Based on this: {context}\n\nAnswer: What's our vacation policy?"
 ### 3. Why RAG Works (30 min)
 
 **Benefits of RAG:**
-| Benefit | Explanation |
-|---------|-------------|
-| **Access private data** | AI can use your documents |
-| **Always current** | Just update the documents |
+
+| Benefit                   | Explanation                            |
+|---------------------------|----------------------------------------|
+| **Access private data**   | AI can use your documents              |
+| **Always current**        | Just update the documents              |
 | **Reduces hallucination** | AI answers from facts, not imagination |
-| **No training needed** | Just change what you search |
-| **Cheaper** | Don't need to fine-tune model |
+| **No training needed**    | Just change what you search            |
+| **Cheaper**               | Don't need to fine-tune model          |
 
 **Limitations we'll solve later:**
-- Keyword search isn't always accurate (Week 5-6: embeddings)
-- Large documents need chunking (Week 5-6: chunking)
-- Need to cite sources (Week 6: citations)
+- Keyword search isn't always accurate (Week 3: embeddings)
+- Large documents need chunking (Week 4: chunking)
+- Need to cite sources (Week 4: citations)
 
 ### 4. Basic Search Concepts (30 min)
 
