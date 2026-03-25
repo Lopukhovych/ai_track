@@ -23,10 +23,10 @@ By the end of this week, you will:
 
 ## Model Options
 
-| Feature | OpenAI (Paid) | Ollama (Free/Local) |
-|---------|--------------|---------------------|
-| Embeddings (fast) | `text-embedding-3-small` | `nomic-embed-text` |
-| Embeddings (multilingual) | `text-embedding-3-large` | `bge-m3` |
+| Feature                   | OpenAI (Paid)            | Ollama (Free/Local)   |
+|---------------------------|--------------------------|-----------------------|
+| Embeddings (fast)         | `text-embedding-3-small` | `nomic-embed-text`    |
+| Embeddings (multilingual) | `text-embedding-3-large` | `bge-m3`              |
 
 **Quick start with Ollama:**
 ```bash
@@ -95,11 +95,11 @@ Finds: "PTO policy", "time off rules", "leave guidelines"
 
 ### 4. Embedding Models (30 min)
 
-| Model | Dimensions | Best For |
-|-------|------------|----------|
-| `text-embedding-3-small` | 1536 | General use, cheaper |
-| `text-embedding-3-large` | 3072 | Higher accuracy |
-| `text-embedding-ada-002` | 1536 | Legacy, still works |
+| Model                    | Dimensions   | Best For             |
+|--------------------------|--------------|----------------------|
+| `text-embedding-3-small` | 1536         | General use, cheaper |
+| `text-embedding-3-large` | 3072         | Higher accuracy      |
+| `text-embedding-ada-002` | 1536         | Legacy, still works  |
 
 **Cost comparison:**
 - `3-small`: $0.02 per 1M tokens
@@ -142,7 +142,7 @@ print(f"Last 5 values: {embedding[-5:]}")
 
 **Install numpy first (needed for vector math):**
 ```bash
-pip install numpy
+uv add numpy
 ```
 
 ```python
