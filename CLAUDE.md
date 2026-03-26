@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+<!-- Extended context loaded from .claude/contexts/ — edit those files, not here -->
+@.claude/contexts/architecture.md
+@.claude/contexts/models.md
+@.claude/contexts/lab-conventions.md
+
 ## What This Repo Is
 
 A 16-week AI engineering curriculum. The repo contains:
@@ -47,7 +52,7 @@ Labs are Jupyter notebooks. Open them in VS Code (with the Jupyter extension) or
 uv run jupyter lab labs/week_01_first_api_call.ipynb
 ```
 
-Run cells top-to-bottom — later cells depend on earlier ones. Default model throughout is `gpt-5-mini`.
+Run cells top-to-bottom — later cells depend on earlier ones. Default model throughout is `gpt-4o-mini`.
 
 ## Running Tests
 
