@@ -30,10 +30,10 @@ By the end of this week, you will:
 
 ## Model Options
 
-| Feature | OpenAI (Paid) | Ollama (Free/Local) |
-|---------|--------------|---------------------|
-| RAG chat / generation | `gpt-5-mini` | `llama3.1:8b` |
-| Embeddings | `text-embedding-3-small` | `nomic-embed-text` |
+| Feature               | OpenAI (Paid)            | Ollama (Free/Local)   |
+|-----------------------|--------------------------|-----------------------|
+| RAG chat / generation | `gpt-5-mini`             | `llama3.1:8b`         |
+| Embeddings            | `text-embedding-3-small` | `nomic-embed-text`    |
 
 **Quick start with Ollama:**
 ```bash
@@ -73,10 +73,11 @@ from scripts.model_config import get_client, CHAT_MODEL, EMBED_MODEL
 ```
 
 **Chunking parameters:**
-| Parameter | Good Default | Description |
-|-----------|--------------|-------------|
-| `chunk_size` | 500-1000 | Characters per chunk |
-| `chunk_overlap` | 100-200 | Overlap between chunks |
+
+| Parameter       | Good Default   | Description            |
+|-----------------|----------------|------------------------|
+| `chunk_size`    | 500-1000       | Characters per chunk   |
+| `chunk_overlap` | 100-200        | Overlap between chunks |
 
 **Why overlap?** Prevents cutting ideas in the middle.
 
@@ -84,12 +85,12 @@ from scripts.model_config import get_client, CHAT_MODEL, EMBED_MODEL
 
 **Why not just use a Python list?**
 
-| Python List | Vector Database |
-|-------------|-----------------|
-| Slow for >10k docs | Fast at any scale |
-| No persistence | Data survives restarts |
-| No indexing | Optimized search algorithms |
-| Memory-only | Disk-based storage |
+| Python List        | Vector Database             |
+|--------------------|-----------------------------|
+| Slow for >10k docs | Fast at any scale           |
+| No persistence     | Data survives restarts      |
+| No indexing        | Optimized search algorithms |
+| Memory-only        | Disk-based storage          |
 
 **Popular vector databases:**
 - **Qdrant** — Easy, Python-first (we'll use this)
@@ -132,12 +133,12 @@ Sources:
 
 **Real documents aren't plain text.** You need to extract text from:
 
-| Format | Tool | Notes |
-|--------|------|-------|
-| **PDF** | `pypdf`, `pdfplumber` | Handle tables, images |
-| **HTML** | `beautifulsoup4` | Strip tags, extract content |
-| **Word** | `python-docx` | Preserve formatting info |
-| **OCR** | `pytesseract`, Azure AI | For scanned documents |
+| Format   | Tool                      | Notes                       |
+|----------|---------------------------|-----------------------------|
+| **PDF**  | `pypdf`, `pdfplumber`     | Handle tables, images       |
+| **HTML** | `beautifulsoup4`          | Strip tags, extract content |
+| **Word** | `python-docx`             | Preserve formatting info    |
+| **OCR**  | `pytesseract`, `Azure AI` | For scanned documents       |
 
 ```python
 # PDF extraction example
@@ -157,10 +158,11 @@ def extract_pdf(path: str) -> list[dict]:
 
 **Document processing pipeline:**
 ```
-Raw Files → [Parser] → [Text Extraction] → [Chunking] → [Embedding] → Vector DB
-    PDF         ↓            ↓
-    HTML    pypdf       Clean text
-    DOCX    bs4         Remove noise
+Raw Files →   [Parser] →   [Text Extraction] → [Chunking] → [Embedding] → Vector DB
+                 ↓                  ↓
+    PDF         pypdf           Clean text
+    HTML    beautifulsoup4       
+    DOCX     python-docx        Remove noise
 ```
 
 ### 6. Re-ranking (30 min)
@@ -174,12 +176,14 @@ Query → Vector Search (fast, top 20) → Re-ranker (accurate, top 3) → LLM
 ```
 
 **Re-ranking methods:**
-| Method | Speed | Quality | Cost |
-|--------|-------|---------|------|
-| Cross-encoder | Slow | Best | High compute |
-| Cohere Rerank API | Fast | Excellent | API cost |
-| LLM-based scoring | Slow | Very good | API cost |
-| BM25 fusion | Fast | Good | Free |
+
+| Method            | Speed   | Quality   | Cost         |
+|-------------------|---------|-----------|--------------|
+| Cross-encoder     | Slow    | Best      | High compute |
+| Cohere Rerank API | Fast    | Excellent | API cost     |
+| LLM-based scoring | Slow    | Very good | API cost     | 
+| BM25 fusion       | Fast    | Good      | Free         |
+
 
 ```python
 # Simple LLM-based re-ranking
@@ -205,11 +209,11 @@ Return JSON: {{"scores": [score1, score2, ...]}}"""
 
 **Combine keyword search + semantic search** for better results.
 
-| Search Type | Good For | Weakness |
-|-------------|----------|----------|
-| **Keyword (BM25)** | Exact terms, names, codes | Misses synonyms |
-| **Semantic (Vector)** | Meaning, concepts | Misses exact matches |
-| **Hybrid** | Both! | More complex |
+| Search Type           | Good For                  | Weakness             |
+|-----------------------|---------------------------|----------------------|
+| **Keyword (BM25)**    | Exact terms, names, codes | Misses synonyms      |
+| **Semantic (Vector)** | Meaning, concepts         | Misses exact matches |
+| **Hybrid**            | Both!                     | More complex         |
 
 ```python
 from rank_bm25 import BM25Okapi
@@ -683,6 +687,164 @@ if __name__ == "__main__":
         print(f"Score {r['rerank_score']}/10: {r['text'][:60]}...")
 ```
 
+### Task 7: Pinecone Vector Store (60 min)
+
+Pinecone is a managed vector database — no server to run, just an API. This task mirrors Task 3 so you can compare the two.
+
+**Setup:**
+```bash
+uv add pinecone
+```
+
+Add to your `.env`:
+```
+PINECONE_API_KEY=your_key_here
+```
+
+Get a free API key at [pinecone.io](https://www.pinecone.io/).
+
+**Qdrant vs Pinecone at a glance:**
+
+| Feature          | Qdrant (Task 3)           | Pinecone (Task 7)         |
+|------------------|---------------------------|---------------------------|
+| Hosting          | Self-hosted or cloud      | Managed cloud only        |
+| Local dev        | In-memory mode            | Requires API key          |
+| API style        | `client.search()`         | `index.query()`           |
+| Data unit        | `PointStruct`             | `{"id", "values", "metadata"}` |
+| Free tier        | Docker locally            | Serverless free tier      |
+
+```python
+# pinecone_store.py
+from pinecone import Pinecone, ServerlessSpec
+from openai import OpenAI
+from dotenv import load_dotenv
+import os
+import uuid
+
+load_dotenv()
+
+
+class PineconeVectorStore:
+    """Vector store using Pinecone managed service."""
+
+    def __init__(self, index_name: str = "documents"):
+        self.pc = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
+        self.openai = OpenAI()
+        self.index_name = index_name
+
+        # Create index if it doesn't exist
+        existing = [i.name for i in self.pc.list_indexes()]
+        if index_name not in existing:
+            self.pc.create_index(
+                name=index_name,
+                dimension=1536,  # text-embedding-3-small output size
+                metric="cosine",
+                spec=ServerlessSpec(cloud="aws", region="us-east-1")
+            )
+            print(f"Created index: {index_name}")
+
+        self.index = self.pc.Index(index_name)
+
+    def add_documents(self, documents: list[dict]):
+        """Embed and upsert documents into Pinecone."""
+        texts = [doc["text"] for doc in documents]
+        response = self.openai.embeddings.create(
+            model="text-embedding-3-small",
+            input=texts
+        )
+
+        vectors = []
+        for i, doc in enumerate(documents):
+            vectors.append({
+                "id": str(uuid.uuid4()),
+                "values": response.data[i].embedding,
+                "metadata": doc  # stored as-is, searchable via filters
+            })
+
+        self.index.upsert(vectors=vectors)
+        print(f"Upserted {len(vectors)} vectors")
+
+    def search(self, query: str, top_k: int = 3) -> list[dict]:
+        """Query Pinecone for similar documents."""
+        query_emb = self.openai.embeddings.create(
+            model="text-embedding-3-small",
+            input=query
+        ).data[0].embedding
+
+        results = self.index.query(
+            vector=query_emb,
+            top_k=top_k,
+            include_metadata=True
+        )
+
+        return [
+            {
+                "text": match.metadata["text"],
+                "score": match.score,
+                **{k: v for k, v in match.metadata.items() if k != "text"}
+            }
+            for match in results.matches
+        ]
+
+    def search_with_filter(self, query: str, filters: dict, top_k: int = 3) -> list[dict]:
+        """Pinecone supports metadata filtering at query time."""
+        query_emb = self.openai.embeddings.create(
+            model="text-embedding-3-small",
+            input=query
+        ).data[0].embedding
+
+        results = self.index.query(
+            vector=query_emb,
+            top_k=top_k,
+            include_metadata=True,
+            filter=filters  # e.g. {"source": {"$eq": "article1"}}
+        )
+
+        return [
+            {"text": m.metadata["text"], "score": m.score}
+            for m in results.matches
+        ]
+
+    def delete_index(self):
+        """Clean up — delete the index to avoid storage costs."""
+        self.pc.delete_index(self.index_name)
+        print(f"Deleted index: {self.index_name}")
+
+
+# Test
+if __name__ == "__main__":
+    store = PineconeVectorStore(index_name="week4-demo")
+
+    docs = [
+        {"text": "Python is great for machine learning", "source": "article1"},
+        {"text": "JavaScript is used for web development", "source": "article2"},
+        {"text": "TensorFlow is a popular ML framework", "source": "article3"},
+    ]
+
+    store.add_documents(docs)
+
+    results = store.search("deep learning frameworks")
+    print("\nSearch: 'deep learning frameworks'")
+    for r in results:
+        print(f"  [{r['score']:.4f}] {r['text']}")
+
+    # Metadata filter example
+    filtered = store.search_with_filter(
+        query="machine learning",
+        filters={"source": {"$eq": "article1"}}
+    )
+    print("\nFiltered search (article1 only):")
+    for r in filtered:
+        print(f"  [{r['score']:.4f}] {r['text']}")
+
+    store.delete_index()  # clean up free-tier quota
+```
+
+**Key differences to notice:**
+- Pinecone indexes take ~10–30 seconds to become ready after creation — in production, check `describe_index_stats()` before querying.
+- Metadata filters use MongoDB-style operators (`$eq`, `$in`, `$gte`) rather than Qdrant's `Filter`/`FieldCondition` objects.
+- There is no in-memory mode — every run hits the cloud API.
+
 ---
 
 ## 🎯 Optional Challenges
@@ -755,6 +917,8 @@ Add images to your document store. Use GPT-4V to describe images, embed the desc
 - [ ] I can extract text from PDFs and other documents
 - [ ] I understand re-ranking and when to use it
 - [ ] I know the difference between keyword, semantic, and hybrid search
+- [ ] I can use Pinecone as a managed alternative to Qdrant
+- [ ] I understand when to choose a managed service vs self-hosted vector DB
 
 ---
 
@@ -765,6 +929,7 @@ Add images to your document store. Use GPT-4V to describe images, embed the desc
 3. `production_rag.py` — Full RAG pipeline
 4. `pdf_processing.py` — PDF extraction and chunking
 5. `reranking.py` — LLM-based re-ranking
+6. `pinecone_store.py` — Pinecone managed vector store
 
 ---
 
