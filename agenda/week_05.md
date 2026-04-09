@@ -112,12 +112,13 @@ Return JSON: {{"score": 1-5, "reason": "..."}}
 **Golden datasets** are your source of truth for evaluation.
 
 **Creating ground-truth data:**
-| Method | Pros | Cons |
-|--------|------|------|
-| **Expert labeling** | High quality | Expensive, slow |
-| **Crowdsourcing** | Scalable | Quality varies |
-| **LLM-assisted** | Fast | Needs verification |
-| **Production sampling** | Realistic | Delayed feedback |
+
+| Method                  | Pros         | Cons                 |
+|-------------------------|--------------|----------------------|
+| **Expert labeling**     | High quality | Expensive, slow      |
+| **Crowdsourcing**       | Scalable     | Quality varies       |
+| **LLM-assisted**        | Fast         | Needs verification   |
+| **Production sampling** | Realistic    | Delayed feedback     |
 
 **Best practices:**
 1. **Diverse questions** — Cover edge cases, not just happy paths

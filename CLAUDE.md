@@ -57,6 +57,13 @@ uv run pytest
 
 Project test files live under `projects/01_rag_qa_system/tests/` following the suggested structure in that project's README.
 
+## Linting
+
+```bash
+uv run ruff check .       # lint
+uv run ruff format .      # format
+```
+
 ## Curriculum Architecture
 
 The course builds a single evolving project across 4 months:
@@ -69,6 +76,24 @@ The course builds a single evolving project across 4 months:
 ## Lab Exercise Format
 
 Each notebook follows this pattern: code cells with `# TODO` comments, followed by collapsed `<details>` HTML blocks containing hints and solutions. Don't remove or reorganize these — the collapsible structure is intentional for the learning workflow.
+
+## Shared Model Configuration
+
+`scripts/model_config.py` provides a unified client for OpenAI and Ollama. Labs import from it:
+
+```python
+from scripts.model_config import get_client, CHAT_MODEL, EMBED_MODEL
+```
+
+Switch to local models by setting `AI_PROVIDER=ollama` in `.env`. Model constants (`CHAT_MODEL`, `EMBED_MODEL`, `VISION_MODEL`, etc.) resolve to the right defaults per provider. All models can be overridden individually via env vars.
+
+## Lab ↔ Agenda Week Numbering
+
+Lab filenames and agenda filenames use different numbering — they do **not** correspond 1-to-1. Example: `labs/week_02_rag_intro.ipynb` covers RAG intro, but `agenda/week_02.md` covers a different topic. Always check both the lab file and the agenda file by content, not by number.
+
+There is also a `labs/week_00_getting_started.ipynb` with no corresponding agenda file.
+
+`scripts/add_solutions.py` is a curriculum maintenance script that injects hint/solution cells into notebooks. Run from the repo root: `uv run python scripts/add_solutions.py`.
 
 ## Key Dependencies by Week
 
