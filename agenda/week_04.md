@@ -240,7 +240,7 @@ def hybrid_search(query: str, documents: list[str], vector_results: list, alpha=
 ### Task 1: Install Qdrant (15 min)
 
 ```bash
-pip install qdrant-client
+uv add qdrant-client
 ```
 
 For local development, use in-memory mode (no server needed).
@@ -615,7 +615,7 @@ def chunk_pdf(path: str, chunk_size: int = 500, overlap: int = 100) -> List[Docu
 
 # Test
 if __name__ == "__main__":
-    # pip install pypdf
+    # uv add pypdf
     chunks = chunk_pdf("sample.pdf")
     print(f"Extracted {len(chunks)} chunks")
     for chunk in chunks[:3]:
@@ -705,13 +705,13 @@ Get a free API key at [pinecone.io](https://www.pinecone.io/).
 
 **Qdrant vs Pinecone at a glance:**
 
-| Feature          | Qdrant (Task 3)           | Pinecone (Task 7)         |
-|------------------|---------------------------|---------------------------|
-| Hosting          | Self-hosted or cloud      | Managed cloud only        |
-| Local dev        | In-memory mode            | Requires API key          |
-| API style        | `client.search()`         | `index.query()`           |
-| Data unit        | `PointStruct`             | `{"id", "values", "metadata"}` |
-| Free tier        | Docker locally            | Serverless free tier      |
+| Feature          | Qdrant (Task 3)             | Pinecone (Task 7)         |
+|------------------|-----------------------------|---------------------------|
+| Hosting          | Self-hosted or cloud        | Managed cloud only        |
+| Local dev        | In-memory mode              | Requires API key          |
+| API style        | `client.query_points()`     | `index.query()`           |
+| Data unit        | `PointStruct`               | `{"id", "values", "metadata"}` |
+| Free tier        | Docker locally              | Serverless free tier      |
 
 ```python
 # pinecone_store.py
