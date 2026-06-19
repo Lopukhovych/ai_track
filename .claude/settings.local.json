@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp:*)",
+      "WebFetch(domain:docs.langchain.com)",
+      "WebFetch(domain:ollama.com)",
+      "Bash(for f in /Users/volod34/PycharmProjects/ai_track/agenda/week_*.md)",
+      "Bash(do echo \"=== $f ===\")",
+      "Read(//Users/volod34/PycharmProjects/ai_track/**)",
+      "Bash(done)",
+      "Bash(test:*)",
+      "Bash(uv:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:strandsagents.com)",
+      "WebSearch",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:x.com)",
+      "Bash(chmod:*)",
+      "Bash(jq \"[.cells[] | {type: .cell_type, preview: \\(.source | join\\(\"\"\"\"\\) | .[0:80]\\)}]\" /Users/volod34/PycharmProjects/ai_track/labs/week_03_local_dev.ipynb)",
+      "Bash(python3 -c \"import json; nb=json.load\\(open\\(''/Users/volod34/PycharmProjects/ai_track/labs/week_03_local_dev.ipynb''\\)\\); print\\(f''cells: {len\\(nb[\"\"cells\"\"]\\)}''\\)\")"
+    ]
+  }
+}
